@@ -1,0 +1,16 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "esp32s3-msp3525-lcd-3.5",
+            "sdkconfig_append": [
+                "CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y",
+                "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y",
+                "CONFIG_SPIRAM=y",
+                "CONFIG_SPIRAM_MODE_OCT=y",
+                "CONFIG_SPIRAM_SPEED_40M=y",
+                "CONFIG_ESP_INT_WDT_TIMEOUT_MS=3000"
+            ]
+        }
+    ]
+}
