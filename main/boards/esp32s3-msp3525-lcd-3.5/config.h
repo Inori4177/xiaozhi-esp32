@@ -34,12 +34,12 @@
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
 /* Landscape 480x320 — LVGL_Demos.ino setRotation(1)
- * ST7796_Init.h MADCTL=0x48 => MX+BGR => mirror_x=true, swap_xy=false */
+ * TFT_eSPI ST7796_Rotation.h case 1: MV+BGR => swap_xy=true, mirror=false */
 #define DISPLAY_WIDTH           480
 #define DISPLAY_HEIGHT          320
-#define DISPLAY_MIRROR_X        true
+#define DISPLAY_MIRROR_X        false
 #define DISPLAY_MIRROR_Y        false
-#define DISPLAY_SWAP_XY         false
+#define DISPLAY_SWAP_XY         true
 #define DISPLAY_RGB_ORDER       LCD_RGB_ELEMENT_ORDER_BGR
 #define DISPLAY_INVERT_COLOR    true
 #define DISPLAY_OFFSET_X        0
