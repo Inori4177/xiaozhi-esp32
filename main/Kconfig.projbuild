@@ -971,4 +971,15 @@ menu "TAIJIPAI_S3_CONFIG"
         启动双声道
 endmenu
 
+menu "MSP3525 3.5 inch Board"
+    depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || BOARD_TYPE_ESP32S3_1_81TFT_LCD_TEST
+
+config MSP3525_TOUCH_TEST
+    bool "Touch button test UI (skip chat UI)"
+    default n
+    help
+        Show a simple LVGL button + coordinate overlay for FT6336 touch validation.
+        Replaces the default xiaozhi chat UI on screen.
+endmenu
+
 endmenu

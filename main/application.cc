@@ -10,6 +10,10 @@
 #include "assets.h"
 #include "settings.h"
 
+#if CONFIG_MSP3525_TOUCH_TEST
+#include "touch_test_ui.h"
+#endif
+
 #include <cstring>
 #include <esp_log.h>
 #include <cJSON.h>
@@ -64,9 +68,14 @@ void Application::Initialize() {
 
     // Setup the display
     auto display = board.GetDisplay();
+#if CONFIG_MSP3525_TOUCH_TEST
+    msp3525_show_touch_test_ui();
+    ESP_LOGI(TAG, "MSP3525 touch test UI enabled (chat UI skipped)");
+#else
     display->SetupUI();
     // Print board name/version info
     display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+#endif
 
     // Setup the audio service
     auto codec = board.GetAudioCodec();
