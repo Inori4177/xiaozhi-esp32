@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "backlight.h"
 #include "codecs/no_audio_codec.h"
 #include "display/lcd_display.h"
 #include "application.h"
@@ -10,28 +11,13 @@
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
 #include <esp_lcd_panel_ops.h>
-#include <esp_lcd_panel_vendor.h>
+#include <esp_lcd_st7796.h>
 #include <lvgl.h>
 
 #define TAG "msp3525_lcd_3_5"
 
-/* From LVGL_Demos/ST7796_Init.h */
-typedef struct {
-    int cmd;
-    const void *data;
-    size_t data_bytes;
-    unsigned int delay_ms;
-} st7796_lcd_init_cmd_t;
-
-typedef struct {
-    const st7796_lcd_init_cmd_t *init_cmds;
-    uint16_t init_cmds_size;
-} st7796_vendor_config_t;
-
+/* LVGL_Demos/ST7796_Init.h — 不含 0x36/0x3A/0x21/0x29（由 esp_lcd API 统一管理，见乐鑫 SPI LCD 移植文档） */
 static const st7796_lcd_init_cmd_t lcd_init_cmds[] = {
-    {0x11, (uint8_t[]){0x00}, 0, 120},
-    {0x36, (uint8_t[]){0x48}, 1, 0},
-    {0x3A, (uint8_t[]){0x55}, 1, 0},
     {0xF0, (uint8_t[]){0xC3}, 1, 0},
     {0xF0, (uint8_t[]){0x96}, 1, 0},
     {0xB4, (uint8_t[]){0x02}, 1, 0},
@@ -44,9 +30,7 @@ static const st7796_lcd_init_cmd_t lcd_init_cmds[] = {
     {0xE0, (uint8_t[]){0xD2, 0x05, 0x08, 0x06, 0x05, 0x02, 0x2A, 0x44, 0x46, 0x39, 0x15, 0x15, 0x2D, 0x32}, 14, 0},
     {0xE1, (uint8_t[]){0x96, 0x08, 0x0C, 0x09, 0x09, 0x25, 0x2E, 0x43, 0x42, 0x35, 0x11, 0x11, 0x28, 0x2E}, 14, 0},
     {0xF0, (uint8_t[]){0x3C}, 1, 0},
-    {0xF0, (uint8_t[]){0x69}, 1, 0},
-    {0x21, (uint8_t[]){0x00}, 0, 120},
-    {0x29, (uint8_t[]){0x00}, 0, 0},
+    {0xF0, (uint8_t[]){0x69}, 1, 120},
 };
 
 static void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
@@ -67,11 +51,55 @@ static void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
     data->point.y = last_y;
 }
 
+/* Arduino User_Setup: TFT_BACKLIGHT_ON HIGH — GPIO 常亮，立即生效 */
+class GpioBacklight : public Backlight {
+public:
+    GpioBacklight(gpio_num_t pin, bool output_invert) : Backlight(), pin_(pin), output_invert_(output_invert) {
+        gpio_config_t cfg = {
+            .pin_bit_mask = 1ULL << pin,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&cfg);
+        SetBrightnessImpl(100);
+    }
+
+    void SetBrightnessImpl(uint8_t brightness) override {
+        const int on = brightness > 0;
+        gpio_set_level(pin_, output_invert_ ? !on : on);
+    }
+
+private:
+    gpio_num_t pin_;
+    bool output_invert_;
+};
+
 class Esp32s3Msp3525Lcd35Board : public WifiBoard {
 private:
     Button boot_button_;
     i2c_master_bus_handle_t i2c_bus_ = nullptr;
     LcdDisplay *display_ = nullptr;
+
+    void InitializeLcdResetPin() {
+        if (DISPLAY_RST_PIN != GPIO_NUM_NC) {
+            gpio_config_t cfg = {
+                .pin_bit_mask = 1ULL << DISPLAY_RST_PIN,
+                .mode = GPIO_MODE_OUTPUT,
+                .pull_up_en = GPIO_PULLUP_DISABLE,
+                .pull_down_en = GPIO_PULLDOWN_DISABLE,
+                .intr_type = GPIO_INTR_DISABLE,
+            };
+            gpio_config(&cfg);
+            gpio_set_level(DISPLAY_RST_PIN, 1);
+            vTaskDelay(pdMS_TO_TICKS(10));
+            gpio_set_level(DISPLAY_RST_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            gpio_set_level(DISPLAY_RST_PIN, 1);
+            vTaskDelay(pdMS_TO_TICKS(120));
+        }
+    }
 
     void InitializeI2c() {
         i2c_master_bus_config_t i2c_bus_cfg = {
@@ -108,7 +136,7 @@ private:
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = DISPLAY_SPI_MODE;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.pclk_hz = DISPLAY_SPI_CLOCK_HZ;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -119,17 +147,20 @@ private:
             .init_cmds_size = sizeof(lcd_init_cmds) / sizeof(st7796_lcd_init_cmd_t),
         };
 
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_RST_PIN;
-        panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
-        panel_config.bits_per_pixel = 16;
-        panel_config.vendor_config = &vendor_config;
+        const esp_lcd_panel_dev_config_t panel_config = {
+            .reset_gpio_num = DISPLAY_RST_PIN,
+            .rgb_ele_order = DISPLAY_RGB_ORDER,
+            .bits_per_pixel = 16,
+            .vendor_config = &vendor_config,
+        };
 
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
+        ESP_LOGI(TAG, "Install ST7796 panel driver");
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7796(panel_io, &panel_config, &panel));
 
         ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_init(panel));
         ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR));
+        /* 在 SpiLcdDisplay 白屏测试前设置 MADCTL（对齐 bread-compact / 乐鑫示例） */
         ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY));
         ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel, true));
@@ -161,12 +192,24 @@ private:
 
 public:
     Esp32s3Msp3525Lcd35Board() : boot_button_(BOOT_BUTTON_GPIO) {
-        InitializeI2c();
+        InitializeLcdResetPin();
+        GetBacklight()->SetBrightness(100);
+
+        ESP_LOGI(TAG, "Init SPI / LCD");
         InitializeSpi();
+        vTaskDelay(1);
         InitializeLcdDisplay();
+        vTaskDelay(1);
+
+        ESP_LOGI(TAG, "Init I2C / touch");
+        InitializeI2c();
+        vTaskDelay(1);
         InitializeTouch();
+        vTaskDelay(1);
+
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
+        ESP_LOGI(TAG, "Board init done");
     }
 
     virtual AudioCodec *GetAudioCodec() override {
@@ -181,7 +224,7 @@ public:
     }
 
     virtual Backlight *GetBacklight() override {
-        static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
+        static GpioBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
 };

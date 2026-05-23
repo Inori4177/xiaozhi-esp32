@@ -4,8 +4,16 @@
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
 
-/* MSP3525/MSP3526 3.5" SPI module — pins from LVGL_Demos/User_Setup.h & touch.h
- * LCD: ST7796S 320x480, touch: FT6336 (I2C 0x38) per user manual */
+/* MSP3525/MSP3526 3.5" — LVGL_Demos (ST7796 + FT6336)
+ *
+ * ESP32-S3-WROOM-1-N16R8 (8MB Octal PSRAM) 禁止占用 GPIO26~37（Flash/PSRAM 专用）。
+ * LVGL_Demos/touch.h 里的 32/25/33 是给 ESP32 经典芯片用的，不能直接用于 S3 N16R8！
+ *
+ * 模块 14P 排针 -> ESP32-S3 推荐接线（与下方宏一致）：
+ *   LCD_SDI(MOSI)=13  LCD_SCK=14  LCD_CS=15  LCD_RS(DC)=2
+ *   LCD_RST=11      LCD_LED(BL)=21   (Arduino 示例为 GPIO27，S3 板请接 11)
+ *   CTP_SDA=8       CTP_SCL=9       CTP_RST=10      CTP_INT=不接(可选)
+ */
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
@@ -13,41 +21,42 @@
 #define BUILTIN_LED_GPIO        GPIO_NUM_NC
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
 
-/* ST7796 SPI (User_Setup.h) */
+/* ST7796 SPI — from LVGL_Demos/User_Setup.h (safe on ESP32-S3) */
 #define DISPLAY_SPI_MODE        0
+#define DISPLAY_SPI_CLOCK_HZ    (40 * 1000 * 1000)
 #define DISPLAY_SPI_HOST        SPI2_HOST
 #define DISPLAY_MOSI_PIN        GPIO_NUM_13
 #define DISPLAY_CLK_PIN         GPIO_NUM_14
 #define DISPLAY_CS_PIN          GPIO_NUM_15
 #define DISPLAY_DC_PIN          GPIO_NUM_2
-#define DISPLAY_RST_PIN         GPIO_NUM_16
+#define DISPLAY_RST_PIN         GPIO_NUM_11
 #define DISPLAY_BACKLIGHT_PIN   GPIO_NUM_21
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 
-/* Landscape UI 480x320 (LVGL_Demos.ino setRotation(1)) */
+/* Landscape 480x320 — LVGL_Demos.ino setRotation(1)
+ * ST7796_Init.h MADCTL=0x48 => MX+BGR => mirror_x=true, swap_xy=false */
 #define DISPLAY_WIDTH           480
 #define DISPLAY_HEIGHT          320
-#define DISPLAY_MIRROR_X        false
+#define DISPLAY_MIRROR_X        true
 #define DISPLAY_MIRROR_Y        false
-#define DISPLAY_SWAP_XY         true
+#define DISPLAY_SWAP_XY         false
 #define DISPLAY_RGB_ORDER       LCD_RGB_ELEMENT_ORDER_BGR
 #define DISPLAY_INVERT_COLOR    true
 #define DISPLAY_OFFSET_X        0
 #define DISPLAY_OFFSET_Y        0
 
-/* FT6336 touch (touch.h) */
-#define TOUCH_I2C_SDA_PIN       GPIO_NUM_38
-#define TOUCH_I2C_SCL_PIN       GPIO_NUM_37
-#define TOUCH_RST_PIN           GPIO_NUM_35
-#define TOUCH_INT_PIN           GPIO_NUM_39
+/* FT6336 — 必须使用未占用 Flash/PSRAM 的 GPIO（勿用 26~37、32、33） */
+#define TOUCH_I2C_SDA_PIN       GPIO_NUM_8
+#define TOUCH_I2C_SCL_PIN       GPIO_NUM_9
+#define TOUCH_RST_PIN           GPIO_NUM_10
+/* 触摸中断脚 CTP_INT：LVGL_Demos 未接；不接则用轮询读坐标，填 GPIO_NUM_NC */
+#define TOUCH_INT_PIN           GPIO_NUM_NC
 
-/* Touch raw coordinate range (portrait panel, touch.h TOUCH_MAP_*) */
 #define TOUCH_RAW_X_MIN         0
 #define TOUCH_RAW_X_MAX         320
 #define TOUCH_RAW_Y_MIN         0
 #define TOUCH_RAW_Y_MAX         480
 
-/* No external audio codec */
 #define AUDIO_I2S_GPIO_WS       GPIO_NUM_4
 #define AUDIO_I2S_GPIO_BCLK     GPIO_NUM_5
 #define AUDIO_I2S_GPIO_DIN      GPIO_NUM_6

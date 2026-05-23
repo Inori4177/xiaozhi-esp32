@@ -44,7 +44,7 @@ static bool ft6336_reset_check(void)
         gpio_set_level(TOUCH_RST_PIN, 0);
         vTaskDelay(pdMS_TO_TICKS(20));
         gpio_set_level(TOUCH_RST_PIN, 1);
-        vTaskDelay(pdMS_TO_TICKS(500));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 
     uint8_t tmp[2] = {0};
@@ -103,6 +103,8 @@ void ft6336_touch_init(i2c_master_bus_handle_t bus_handle, uint16_t width, uint1
 
     if (!ft6336_reset_check()) {
         ESP_LOGW(TAG, "FT6336 init check failed, touch may not work");
+        ESP_LOGW(TAG, "Check CTP: SDA=GPIO%d SCL=GPIO%d RST=GPIO%d (not 26~37)",
+                 (int)TOUCH_I2C_SDA_PIN, (int)TOUCH_I2C_SCL_PIN, (int)TOUCH_RST_PIN);
     } else {
         ESP_LOGI(TAG, "FT6336 initialized");
     }
