@@ -12,7 +12,7 @@
  * 模块 14P 排针 -> ESP32-S3 推荐接线（与下方宏一致）：
  *   LCD_SDI(MOSI)=13  LCD_SCK=14  LCD_CS=15  LCD_RS(DC)=2
  *   LCD_RST=11      LCD_LED(BL)=21   (Arduino 示例为 GPIO27，S3 板请接 11)
- *   CTP_SDA=8       CTP_SCL=9       CTP_RST=10      CTP_INT=不接(可选)
+ *   CTP_SDA=8       CTP_SCL=9       CTP_RST=10      CTP_INT=12
  */
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
@@ -49,8 +49,8 @@
 #define TOUCH_I2C_SDA_PIN       GPIO_NUM_8
 #define TOUCH_I2C_SCL_PIN       GPIO_NUM_9
 #define TOUCH_RST_PIN           GPIO_NUM_10
-/* 触摸中断：接 CTP_INT 可显著降低延迟；未接则固件 20ms 轮询唤醒 LVGL */
-#define TOUCH_INT_PIN           GPIO_NUM_NC
+/* CTP_INT：接 GPIO12（FT6336 低电平有效，任意边沿唤醒 LVGL） */
+#define TOUCH_INT_PIN           GPIO_NUM_12
 
 /* 原始坐标映射（可按实机微调，缩小死区） */
 #define TOUCH_RAW_X_MIN         0
@@ -60,7 +60,11 @@
 
 /* FT6336 灵敏度：THGROUP 越小越易触发；PERIODACTIVE 越小扫描越快（单位约 10ms） */
 #define TOUCH_THGROUP           0x02
-#define TOUCH_PERIODACTIVE      2
+#define TOUCH_PERIODACTIVE      1
+
+/* 无 INT 时轮询周期 (ms)；有 INT 时作后备采样 */
+#define TOUCH_POLL_MS_NO_INT    10
+#define TOUCH_POLL_MS_WITH_INT  8
 
 /* 映射死区补偿：略扩大原始坐标范围，减轻边缘“按不到” */
 #define TOUCH_MAP_MARGIN        24
