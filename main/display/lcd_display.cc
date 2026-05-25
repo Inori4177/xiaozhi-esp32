@@ -695,6 +695,13 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     
     // Store reference to the latest message label
     chat_message_label_ = msg_text;
+
+#if CONFIG_MSP3525_LASER_UI
+    extern void laser_ui_log_append(const char *role, const char *content);
+    if (content != nullptr && content[0] != '\0') {
+        laser_ui_log_append(role, content);
+    }
+#endif
 }
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
@@ -1057,6 +1064,12 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
     }
 #endif
+#if CONFIG_MSP3525_LASER_UI
+    extern void laser_ui_log_append(const char *role, const char *content);
+    if (content != nullptr && content[0] != '\0') {
+        laser_ui_log_append(role, content);
+    }
+#endif
 }
 
 void LcdDisplay::ClearChatMessages() {
@@ -1307,4 +1320,23 @@ void LcdDisplay::SetHideSubtitle(bool hide) {
             }
         }
     }
+}
+
+void LcdDisplay::SetLaserUiChromeVisible(bool top_bottom_visible, bool center_visible) {
+    DisplayLockGuard lock(this);
+    auto set_visible = [](lv_obj_t *obj, bool visible) {
+        if (obj == nullptr) {
+            return;
+        }
+        if (visible) {
+            lv_obj_remove_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(obj, LV_OBJ_FLAG_HIDDEN);
+        }
+    };
+    set_visible(top_bar_, top_bottom_visible);
+    set_visible(status_bar_, top_bottom_visible);
+    set_visible(bottom_bar_, top_bottom_visible);
+    set_visible(emoji_box_, center_visible);
+    set_visible(preview_image_, center_visible);
 }

@@ -14,6 +14,8 @@
 #define FT6336_REG_FOCALTECH_ID 0xA8
 #define FT6336_REG_CIPHER_MID   0x9F
 #define FT6336_REG_CIPHER_HIGH  0xA3
+#define FT6336_REG_THGROUP      0x80
+#define FT6336_REG_PERIODACTIVE 0x88
 
 static i2c_master_dev_handle_t dev_handle = nullptr;
 static uint16_t g_width = 0;
@@ -26,6 +28,23 @@ static bool g_touched = false;
 static esp_err_t read_reg(uint8_t reg, uint8_t *data, size_t len)
 {
     return i2c_master_transmit_receive(dev_handle, &reg, 1, data, len, pdMS_TO_TICKS(100));
+}
+
+static esp_err_t write_reg(uint8_t reg, uint8_t val)
+{
+    uint8_t buf[2] = {reg, val};
+    return i2c_master_transmit(dev_handle, buf, sizeof(buf), pdMS_TO_TICKS(100));
+}
+
+static void ft6336_apply_tuning(void)
+{
+    if (write_reg(FT6336_REG_THGROUP, TOUCH_THGROUP) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set THGROUP");
+    }
+    if (write_reg(FT6336_REG_PERIODACTIVE, TOUCH_PERIODACTIVE) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set PERIODACTIVE");
+    }
+    ESP_LOGI(TAG, "Touch tuning THGROUP=0x%02x PERIODACTIVE=%d", TOUCH_THGROUP, TOUCH_PERIODACTIVE);
 }
 
 static bool ft6336_reset_check(void)
@@ -68,6 +87,9 @@ static int map_coord(int value, int in_min, int in_max, int out_max)
     if (in_max <= in_min) {
         return 0;
     }
+    const int margin = TOUCH_MAP_MARGIN;
+    in_min -= margin;
+    in_max += margin;
     value = value < in_min ? in_min : (value > in_max ? in_max : value);
     return (value - in_min) * out_max / (in_max - in_min);
 }
@@ -79,8 +101,8 @@ void ft6336_touch_init(i2c_master_bus_handle_t bus_handle, uint16_t width, uint1
     g_rotation = rotation;
 
     switch (rotation) {
-        case 1: /* ROTATION_LEFT — LVGL_Demos setRotation(1) */
-        case 3:
+        case FT6336_ROTATION_LEFT:
+        case FT6336_ROTATION_RIGHT:
             g_min_x = TOUCH_RAW_Y_MIN;
             g_max_x = TOUCH_RAW_Y_MAX;
             g_min_y = TOUCH_RAW_X_MIN;
@@ -106,7 +128,10 @@ void ft6336_touch_init(i2c_master_bus_handle_t bus_handle, uint16_t width, uint1
         ESP_LOGW(TAG, "Check CTP: SDA=GPIO%d SCL=GPIO%d RST=GPIO%d (not 26~37)",
                  (int)TOUCH_I2C_SDA_PIN, (int)TOUCH_I2C_SCL_PIN, (int)TOUCH_RST_PIN);
     } else {
-        ESP_LOGI(TAG, "FT6336 initialized");
+        ESP_LOGI(TAG, "FT6336 initialized: logical %ux%u rot=%u map X[%d,%d] Y[%d,%d]",
+                 (unsigned)g_width, (unsigned)g_height, (unsigned)g_rotation,
+                 g_min_x, g_max_x, g_min_y, g_max_y);
+        ft6336_apply_tuning();
     }
 }
 
@@ -121,7 +146,13 @@ void ft6336_touch_read(void)
     }
 
     uint8_t touches = status & 0x0F;
-    if (touches == 0 || touches >= 3) {
+    /* 与 Arduino 一致：1~2 点；若低 4 位为 0 但 status>0，按 1 点处理（部分批次固件） */
+    if (touches == 0) {
+        if (status == 0) {
+            return;
+        }
+        touches = 1;
+    } else if (touches > 2) {
         return;
     }
 
@@ -132,29 +163,41 @@ void ft6336_touch_read(void)
     uint16_t raw_x = ((data[0] & 0x0F) << 8) | data[1];
     uint16_t raw_y = ((data[2] & 0x0F) << 8) | data[3];
 
-    /* Match FT6336.cpp readPoint() — ctor uses 320x480 from touch.h */
-    const uint16_t panel_w = TOUCH_RAW_X_MAX;
-    const uint16_t panel_h = TOUCH_RAW_Y_MAX;
-    uint16_t tx = raw_x, ty = raw_y;
+    /* Match FT6336-arduino/FT6336.cpp readPoint(): rotation uses native panel
+     * size (320x480 from TOUCH_MAP_*), NOT logical LVGL size (480x320). */
+    uint16_t tx = raw_x;
+    uint16_t ty = raw_y;
+    const uint16_t native_w = TOUCH_RAW_X_MAX;
+    const uint16_t native_h = TOUCH_RAW_Y_MAX;
     switch (g_rotation) {
-        case 1: /* ROTATION_LEFT */
-            tx = panel_h - raw_y;
+        case FT6336_ROTATION_LEFT:
+            tx = native_h - raw_y;
             ty = raw_x;
             break;
-        case 2: /* ROTATION_INVERTED */
-            tx = panel_w - raw_x;
-            ty = panel_h - raw_y;
+        case FT6336_ROTATION_INVERTED:
+            tx = native_w - raw_x;
+            ty = native_h - raw_y;
             break;
-        case 3: /* ROTATION_RIGHT */
+        case FT6336_ROTATION_RIGHT: /* TFT setRotation(1) / LVGL_Demos.ino */
             tx = raw_y;
-            ty = panel_w - raw_x;
+            ty = native_w - raw_x;
             break;
         default:
             break;
     }
 
-    g_last_x = map_coord(tx, g_min_x, g_max_x, g_width - 1);
-    g_last_y = map_coord(ty, g_min_y, g_max_y, g_height - 1);
+    g_last_x = map_coord(static_cast<int>(tx), g_min_x, g_max_x, static_cast<int>(g_width) - 1);
+    g_last_y = map_coord(static_cast<int>(ty), g_min_y, g_max_y, static_cast<int>(g_height) - 1);
+#if TOUCH_INVERT_X
+    if (g_width > 0) {
+        g_last_x = static_cast<int>(g_width) - 1 - g_last_x;
+    }
+#endif
+#if TOUCH_INVERT_Y
+    if (g_height > 0) {
+        g_last_y = static_cast<int>(g_height) - 1 - g_last_y;
+    }
+#endif
     g_touched = true;
 }
 
@@ -166,4 +209,9 @@ bool ft6336_touch_get_point(int *x, int *y)
     *x = g_last_x;
     *y = g_last_y;
     return true;
+}
+
+bool ft6336_touch_is_pressed(void)
+{
+    return g_touched;
 }

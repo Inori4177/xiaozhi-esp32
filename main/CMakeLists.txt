@@ -533,7 +533,11 @@ elseif(CONFIG_BOARD_TYPE_ESP32S3_1_81TFT_LCD_TEST)
 elseif(CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5)
     set(BOARD_TYPE "esp32s3-msp3525-lcd-3.5")
     list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5)
-    set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    if(CONFIG_MSP3525_LASER_UI)
+        set(BUILTIN_TEXT_FONT font_puhui_20_4)
+    else()
+        set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+    endif()
     set(BUILTIN_ICON_FONT font_awesome_20_4)
     set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 elseif(CONFIG_BOARD_TYPE_TUDOUZI)
@@ -821,6 +825,16 @@ else()
     )
 endif()
 list(APPEND SOURCES ${BOARD_SOURCES})
+
+if(CONFIG_MSP3525_LASER_UI)
+    list(APPEND INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages)
+    file(GLOB LASER_UI_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages/*.cc)
+    list(APPEND SOURCES ${LASER_UI_SRCS})
+endif()
 
 # Select audio processor according to Kconfig
 if(CONFIG_USE_AUDIO_PROCESSOR)

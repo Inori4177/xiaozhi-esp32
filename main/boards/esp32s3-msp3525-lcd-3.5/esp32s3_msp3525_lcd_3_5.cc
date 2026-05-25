@@ -10,11 +10,78 @@
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <driver/spi_common.h>
+#include <driver/gpio.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_st7796.h>
+#include <esp_lvgl_port.h>
+#include <esp_timer.h>
 #include <lvgl.h>
 
 #define TAG "msp3525_lcd_3_5"
+
+static lv_indev_t *g_touch_indev = nullptr;
+static esp_timer_handle_t g_touch_poll_timer = nullptr;
+static bool g_last_touch_pressed = false;
+
+static void touch_wake_lvgl(void)
+{
+    if (g_touch_indev != nullptr) {
+        lvgl_port_task_wake(LVGL_PORT_EVENT_TOUCH, g_touch_indev);
+    }
+}
+
+static void touch_poll_timer_cb(void *arg)
+{
+    (void)arg;
+    ft6336_touch_read();
+    const bool pressed = ft6336_touch_is_pressed();
+    if (pressed != g_last_touch_pressed || pressed) {
+        g_last_touch_pressed = pressed;
+        touch_wake_lvgl();
+    }
+}
+
+static void IRAM_ATTR touch_int_isr(void *arg)
+{
+    (void)arg;
+    touch_wake_lvgl();
+}
+
+static void touch_start_polling(void)
+{
+    if (g_touch_poll_timer != nullptr) {
+        return;
+    }
+    const esp_timer_create_args_t args = {
+        .callback = &touch_poll_timer_cb,
+        .arg = nullptr,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "touch_poll",
+        .skip_unhandled_events = true,
+    };
+    if (esp_timer_create(&args, &g_touch_poll_timer) == ESP_OK) {
+        esp_timer_start_periodic(g_touch_poll_timer, 10 * 1000);
+        ESP_LOGI(TAG, "Touch poll 10ms (wake LVGL on touch)");
+    }
+}
+
+static void touch_setup_interrupt(void)
+{
+    if (TOUCH_INT_PIN == GPIO_NUM_NC) {
+        return;
+    }
+    gpio_config_t cfg = {
+        .pin_bit_mask = 1ULL << TOUCH_INT_PIN,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_NEGEDGE,
+    };
+    gpio_config(&cfg);
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(TOUCH_INT_PIN, touch_int_isr, nullptr);
+    ESP_LOGI(TAG, "Touch INT on GPIO%d", (int)TOUCH_INT_PIN);
+}
 
 /* LVGL_Demos/ST7796_Init.h — 不含 0x36/0x3A/0x21/0x29（由 esp_lcd API 统一管理，见乐鑫 SPI LCD 移植文档） */
 static const st7796_lcd_init_cmd_t lcd_init_cmds[] = {
@@ -35,11 +102,13 @@ static const st7796_lcd_init_cmd_t lcd_init_cmds[] = {
 
 static void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data)
 {
+    (void)indev;
     static int last_x = 0;
     static int last_y = 0;
-    int x = 0, y = 0;
+    int x = 0;
+    int y = 0;
 
-    ft6336_touch_read();
+    /* 坐标由 10ms 轮询更新，此处不再重复 I2C，降低延迟与丢点 */
     if (ft6336_touch_get_point(&x, &y)) {
         last_x = x;
         last_y = y;
@@ -171,12 +240,18 @@ private:
     }
 
     void InitializeTouch() {
-        ft6336_touch_init(i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, 1);
+        /* rotation=1 matches LVGL_Demos: setRotation(1) -> FT6336 ROTATION_RIGHT */
+        ft6336_touch_init(i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, FT6336_ROTATION_RIGHT);
 
-        lv_indev_t *indev = lv_indev_create();
-        lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
-        lv_indev_set_read_cb(indev, touchpad_read);
-        lv_indev_set_display(indev, lv_display_get_default());
+        g_touch_indev = lv_indev_create();
+        lv_indev_set_type(g_touch_indev, LV_INDEV_TYPE_POINTER);
+        lv_indev_set_read_cb(g_touch_indev, touchpad_read);
+        lv_indev_set_display(g_touch_indev, lv_display_get_default());
+        /* EVENT：由轮询/中断唤醒 LVGL 后再读缓存坐标 */
+        lv_indev_set_mode(g_touch_indev, LV_INDEV_MODE_EVENT);
+
+        touch_setup_interrupt();
+        touch_start_polling();
     }
 
     void InitializeButtons() {

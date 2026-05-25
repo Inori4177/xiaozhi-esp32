@@ -49,13 +49,25 @@
 #define TOUCH_I2C_SDA_PIN       GPIO_NUM_8
 #define TOUCH_I2C_SCL_PIN       GPIO_NUM_9
 #define TOUCH_RST_PIN           GPIO_NUM_10
-/* 触摸中断脚 CTP_INT：LVGL_Demos 未接；不接则用轮询读坐标，填 GPIO_NUM_NC */
+/* 触摸中断：接 CTP_INT 可显著降低延迟；未接则固件 20ms 轮询唤醒 LVGL */
 #define TOUCH_INT_PIN           GPIO_NUM_NC
 
+/* 原始坐标映射（可按实机微调，缩小死区） */
 #define TOUCH_RAW_X_MIN         0
 #define TOUCH_RAW_X_MAX         320
 #define TOUCH_RAW_Y_MIN         0
 #define TOUCH_RAW_Y_MAX         480
+
+/* FT6336 灵敏度：THGROUP 越小越易触发；PERIODACTIVE 越小扫描越快（单位约 10ms） */
+#define TOUCH_THGROUP           0x02
+#define TOUCH_PERIODACTIVE      2
+
+/* 映射死区补偿：略扩大原始坐标范围，减轻边缘“按不到” */
+#define TOUCH_MAP_MARGIN        24
+
+/* 实机校准：旋转公式与 Arduino 一致后，若仍左右/上下颠倒可改为 1 */
+#define TOUCH_INVERT_X          false
+#define TOUCH_INVERT_Y          false
 
 #define AUDIO_I2S_GPIO_WS       GPIO_NUM_4
 #define AUDIO_I2S_GPIO_BCLK     GPIO_NUM_5
