@@ -2,11 +2,30 @@
 #include "../laser_ui_layout.h"
 #include "../laser_ui_widgets.h"
 #include "../laser_ui_events.h"
+#include "../../laser_ui_state.h"
 
 static void emit_cb(lv_event_t *e)
 {
     auto id = static_cast<laser_ui_event_id_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
     laser_ui_events_emit(id);
+}
+
+static void power_slider_cb(lv_event_t *e)
+{
+    laser_ui_state_on_power_slider(e);
+    emit_cb(e);
+}
+
+static void speed_slider_cb(lv_event_t *e)
+{
+    laser_ui_state_on_speed_slider(e);
+    emit_cb(e);
+}
+
+static void material_cb(lv_event_t *e)
+{
+    laser_ui_state_on_material_changed(e);
+    emit_cb(e);
 }
 
 static void style_value_label(lv_obj_t *label)
@@ -37,7 +56,7 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_t *material = lv_dropdown_create(panel);
     lv_dropdown_set_options(material, "Wood\nAcrylic\nLeather\nCustom");
     lv_obj_set_width(material, LV_PCT(100));
-    lv_obj_add_event_cb(material, emit_cb, LV_EVENT_VALUE_CHANGED,
+    lv_obj_add_event_cb(material, material_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_MATERIAL_CHANGED)));
 
     lv_obj_t *pwr_lbl = lv_label_create(panel);
@@ -55,7 +74,7 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_width(power, LV_PCT(72));
     lv_slider_set_range(power, 0, 100);
     lv_slider_set_value(power, 50, LV_ANIM_OFF);
-    lv_obj_add_event_cb(power, emit_cb, LV_EVENT_VALUE_CHANGED,
+    lv_obj_add_event_cb(power, power_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_POWER_CHANGED)));
     lv_obj_t *power_val = lv_label_create(power_row);
     lv_label_set_text(power_val, "50%");
@@ -76,15 +95,17 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_flex_align(speed_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *speed = lv_slider_create(speed_row);
     lv_obj_set_width(speed, LV_PCT(72));
-    lv_slider_set_range(speed, 100, 3000);
-    lv_slider_set_value(speed, 1000, LV_ANIM_OFF);
-    lv_obj_add_event_cb(speed, emit_cb, LV_EVENT_VALUE_CHANGED,
+    lv_slider_set_range(speed, 10, 200);
+    lv_slider_set_value(speed, 100, LV_ANIM_OFF);
+    lv_obj_add_event_cb(speed, speed_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_SPEED_CHANGED)));
     lv_obj_t *speed_val = lv_label_create(speed_row);
-    lv_label_set_text(speed_val, "1000 mm/min");
+    lv_label_set_text(speed_val, "100%");
     style_value_label(speed_val);
-    lv_obj_set_width(speed_val, 110);
+    lv_obj_set_width(speed_val, 72);
     lv_obj_set_style_text_align(speed_val, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+
+    laser_ui_state_bind_settings(material, power, power_val, speed, speed_val);
 
     lv_obj_t *apply = laser_ui_create_button(page, "应用", UI_COLOR_ACCENT, lv_color_hex(0x1565C0));
     lv_obj_set_width(apply, LV_PCT(100));

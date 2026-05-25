@@ -32,4 +32,14 @@ esp32s3-msp3525-lcd-3.5/
 
 ## 业务逻辑
 
-在板目录新增 `laser_controller.cc`，`laser_ui_events_register()` 处理雕刻事件，无需再改 `application.cc`。
+板目录已包含：
+
+| 文件 | 作用 |
+|------|------|
+| `laser_controller.cc` | `laser_ui_events_register()`，按键 → G-code |
+| `laser_gcode.cc` | UART 发送（`config.h` 中 `LASER_UART_*`） |
+| `laser_ui_state.cc` | 打印/设置页控件状态，供控制器读取 |
+
+打印页：运行 `~`、暂停 `!`、XY 点动 `G91 G0`、回零 `G28`。设置页：点「应用」发送材料注释、`M3 S*`、 `G1 F*`（100% = `LASER_GCODE_FEED_BASE_MM_MIN`）。
+
+无需再改 `application.cc`。

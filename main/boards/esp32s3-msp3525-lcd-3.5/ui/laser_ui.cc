@@ -1,4 +1,5 @@
 #include "laser_ui.h"
+#include "laser_controller.h"
 #include "laser_ui_shell.h"
 #include "laser_ui_events.h"
 #include "laser_ui_log.h"
@@ -35,6 +36,7 @@ void laser_ui_init(Display *display)
     BoardUiSetChromeVisible(display, true, false);
 
     laser_ui_events_init();
+    laser_controller_init();
     laser_ui_log_init();
     laser_ui_log_set_refresh_cb(log_refresh_cb);
 

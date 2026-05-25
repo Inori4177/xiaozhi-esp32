@@ -77,4 +77,10 @@
 #define AUDIO_I2S_GPIO_DIN      GPIO_NUM_6
 #define AUDIO_I2S_GPIO_DOUT     GPIO_NUM_7
 
+/* Laser / GRBL serial — set TX to NC to log-only test without wiring */
+#define LASER_UART_NUM          UART_NUM_1
+#define LASER_UART_TX_PIN       GPIO_NUM_17
+#define LASER_UART_RX_PIN       GPIO_NUM_NC
+#define LASER_UART_BAUD_RATE    115200
+
 #endif // _BOARD_CONFIG_H_

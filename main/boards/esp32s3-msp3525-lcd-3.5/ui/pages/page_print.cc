@@ -2,11 +2,18 @@
 #include "../laser_ui_layout.h"
 #include "../laser_ui_widgets.h"
 #include "../laser_ui_events.h"
+#include "../../laser_ui_state.h"
 
 static void emit_cb(lv_event_t *e)
 {
     auto id = static_cast<laser_ui_event_id_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
     laser_ui_events_emit(id);
+}
+
+static void step_slider_cb(lv_event_t *e)
+{
+    laser_ui_state_on_step_slider(e);
+    emit_cb(e);
 }
 
 static void style_status_label(lv_obj_t *label, lv_color_t color)
@@ -100,13 +107,17 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_flex_align(step_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *step_lbl = lv_label_create(step_row);
-    lv_label_set_text(step_lbl, "步进 1mm");
+    lv_label_set_text(step_lbl, "步进 1.0mm");
+    lv_obj_set_style_text_color(step_lbl, UI_COLOR_ACCENT, LV_PART_MAIN);
+
     lv_obj_t *slider = lv_slider_create(step_row);
     lv_obj_set_width(slider, 160);
     lv_slider_set_range(slider, 0, 4);
     lv_slider_set_value(slider, 2, LV_ANIM_OFF);
-    lv_obj_add_event_cb(slider, emit_cb, LV_EVENT_VALUE_CHANGED,
+    lv_obj_add_event_cb(slider, step_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_STEP_CHANGED)));
+
+    laser_ui_state_bind_print(step_lbl, slider);
 
     lv_obj_t *cross = lv_obj_create(jog);
     lv_obj_set_size(cross, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
