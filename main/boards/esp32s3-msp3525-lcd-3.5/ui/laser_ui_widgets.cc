@@ -55,7 +55,6 @@ lv_obj_t *laser_ui_create_nav_button(lv_obj_t *parent, const char *icon, const c
     lv_obj_set_style_pad_row(btn, 2, LV_PART_MAIN);
     lv_obj_set_style_transform_width(btn, -1, LV_PART_MAIN | LV_STATE_PRESSED);
     lv_obj_set_style_transform_height(btn, -1, LV_PART_MAIN | LV_STATE_PRESSED);
-    lv_obj_set_ext_click_area(btn, 12);
 
     lv_obj_t *icon_lbl = lv_label_create(btn);
     lv_label_set_text(icon_lbl, icon);

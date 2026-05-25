@@ -140,8 +140,8 @@ void ft6336_touch_read(void)
     uint8_t status = 0;
     uint8_t data[4] = {0};
 
+    g_touched = false;
     if (read_reg(FT6336_REG_TD_STATUS, &status, 1) != ESP_OK) {
-        /* 保持上一帧，避免 I2C 偶发失败导致滑块/按钮误释放 */
         return;
     }
 
@@ -149,7 +149,6 @@ void ft6336_touch_read(void)
     /* 与 Arduino 一致：1~2 点；若低 4 位为 0 但 status>0，按 1 点处理（部分批次固件） */
     if (touches == 0) {
         if (status == 0) {
-            g_touched = false;
             return;
         }
         touches = 1;

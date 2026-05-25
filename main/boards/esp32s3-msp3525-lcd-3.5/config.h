@@ -9,10 +9,12 @@
  * ESP32-S3-WROOM-1-N16R8 (8MB Octal PSRAM) 禁止占用 GPIO26~37（Flash/PSRAM 专用）。
  * LVGL_Demos/touch.h 里的 32/25/33 是给 ESP32 经典芯片用的，不能直接用于 S3 N16R8！
  *
- * 模块 14P 排针 -> ESP32-S3 推荐接线（与下方宏一致）：
- *   LCD_SDI(MOSI)=13  LCD_SCK=14  LCD_CS=15  LCD_RS(DC)=2
+ * 模块 14P 排针 -> ESP32-S3 推荐接线（与下方宏一致，对齐 LVGL_Demos/User_Setup.h）：
+ *   LCD_SDI(MOSI)=13  LCD_SDO(MISO)=12  LCD_SCK=14  LCD_CS=15  LCD_RS(DC)=2
  *   LCD_RST=11      LCD_LED(BL)=21   (Arduino 示例为 GPIO27，S3 板请接 11)
- *   CTP_SDA=8       CTP_SCL=9       CTP_RST=10      CTP_INT=12
+ *   CTP_SDA=8       CTP_SCL=9       CTP_RST=10      CTP_INT=16
+ *
+ * MISO：LVGL 刷图只需写；读寄存器/抓屏/交互回传需接 SDO 并配置 DISPLAY_MISO_PIN。
  */
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
@@ -26,6 +28,7 @@
 #define DISPLAY_SPI_CLOCK_HZ    (40 * 1000 * 1000)
 #define DISPLAY_SPI_HOST        SPI2_HOST
 #define DISPLAY_MOSI_PIN        GPIO_NUM_13
+#define DISPLAY_MISO_PIN        GPIO_NUM_12
 #define DISPLAY_CLK_PIN         GPIO_NUM_14
 #define DISPLAY_CS_PIN          GPIO_NUM_15
 #define DISPLAY_DC_PIN          GPIO_NUM_2
@@ -49,8 +52,8 @@
 #define TOUCH_I2C_SDA_PIN       GPIO_NUM_8
 #define TOUCH_I2C_SCL_PIN       GPIO_NUM_9
 #define TOUCH_RST_PIN           GPIO_NUM_10
-/* CTP_INT：接 GPIO12（FT6336 低电平有效，任意边沿唤醒 LVGL） */
-#define TOUCH_INT_PIN           GPIO_NUM_12
+/* 触摸中断 CTP_INT -> GPIO16（可选，仅用于唤醒 LVGL 任务；读触摸靠 LV_INDEV_MODE_TIMER） */
+#define TOUCH_INT_PIN           GPIO_NUM_16
 
 /* 原始坐标映射（可按实机微调，缩小死区） */
 #define TOUCH_RAW_X_MIN         0
@@ -60,11 +63,7 @@
 
 /* FT6336 灵敏度：THGROUP 越小越易触发；PERIODACTIVE 越小扫描越快（单位约 10ms） */
 #define TOUCH_THGROUP           0x02
-#define TOUCH_PERIODACTIVE      1
-
-/* 无 INT 时轮询周期 (ms)；有 INT 时作后备采样 */
-#define TOUCH_POLL_MS_NO_INT    10
-#define TOUCH_POLL_MS_WITH_INT  8
+#define TOUCH_PERIODACTIVE      2
 
 /* 映射死区补偿：略扩大原始坐标范围，减轻边缘“按不到” */
 #define TOUCH_MAP_MARGIN        24
