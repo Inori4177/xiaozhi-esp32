@@ -14,10 +14,7 @@
 #include "touch_test_ui.h"
 #endif
 
-#if CONFIG_MSP3525_LASER_UI
-#include "laser_ui_splash.h"
-#include "lvgl_theme.h"
-#endif
+#include "boards/common/board_custom_ui.h"
 
 #include <cstring>
 #include <esp_log.h>
@@ -76,26 +73,21 @@ void Application::Initialize() {
 #if CONFIG_MSP3525_TOUCH_TEST
     msp3525_show_touch_test_ui();
     ESP_LOGI(TAG, "MSP3525 touch test UI enabled (chat UI skipped)");
-#elif CONFIG_MSP3525_LASER_UI
-    display->SetupUI();
-    display->SetTheme(LvglThemeManager::GetInstance().GetTheme("dark"));
-    laser_ui_splash_start(display);
-    laser_ui_splash_set_step(SPLASH_STEP_DISPLAY, SPLASH_STATE_OK);
 #else
-    display->SetupUI();
-    // Print board name/version info
-    display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+    if (BoardHasCustomUi()) {
+        BoardUiOnDisplayInit(display);
+    } else {
+        display->SetupUI();
+        // Print board name/version info
+        display->SetChatMessage("system", SystemInfo::GetUserAgent().c_str());
+    }
 #endif
 
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_AUDIO, SPLASH_STATE_RUNNING);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_AUDIO, BOARD_UI_SPLASH_RUNNING);
     // Setup the audio service
     auto codec = board.GetAudioCodec();
     audio_service_.Initialize(codec);
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_AUDIO, SPLASH_STATE_OK);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_AUDIO, BOARD_UI_SPLASH_OK);
     audio_service_.Start();
 
     AudioServiceCallbacks callbacks;
@@ -122,9 +114,7 @@ void Application::Initialize() {
     auto& mcp_server = McpServer::GetInstance();
     mcp_server.AddCommonTools();
     mcp_server.AddUserOnlyTools();
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_MCP, SPLASH_STATE_OK);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_MCP, BOARD_UI_SPLASH_OK);
 
     // Set network event callback for UI updates and network state handling
     board.SetNetworkEventCallback([this](NetworkEvent event, const std::string& data) {
@@ -153,9 +143,7 @@ void Application::Initialize() {
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
-#if CONFIG_MSP3525_LASER_UI
-                laser_ui_splash_set_step(SPLASH_STEP_WIFI, SPLASH_STATE_OK);
-#endif
+                BoardUiOnSplashStep(BOARD_UI_SPLASH_WIFI, BOARD_UI_SPLASH_OK);
                 break;
             }
             case NetworkEvent::Disconnected:
@@ -187,13 +175,9 @@ void Application::Initialize() {
     });
 
     // Start network asynchronously
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_NETWORK, SPLASH_STATE_RUNNING);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_NETWORK, BOARD_UI_SPLASH_RUNNING);
     board.StartNetwork();
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_NETWORK, SPLASH_STATE_OK);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_NETWORK, BOARD_UI_SPLASH_OK);
 
     // Update the status bar immediately to show the network state
     display->UpdateStatusBar(true);
@@ -346,10 +330,7 @@ void Application::HandleActivationDoneEvent() {
     display->ShowNotification(message.c_str());
     display->SetChatMessage("system", "");
 
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_READY, SPLASH_STATE_OK);
-    laser_ui_splash_finish(display);
-#endif
+    BoardUiOnActivationDone(display);
 
     // Release OTA object after activation is complete
     ota_.reset();
@@ -366,28 +347,20 @@ void Application::ActivationTask() {
     // Create OTA object for activation process
     ota_ = std::make_unique<Ota>();
 
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_ASSETS, SPLASH_STATE_RUNNING);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_ASSETS, BOARD_UI_SPLASH_RUNNING);
     // Check for new assets version
     CheckAssetsVersion();
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_ASSETS, SPLASH_STATE_OK);
-    laser_ui_splash_set_step(SPLASH_STEP_OTA, SPLASH_STATE_RUNNING);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_ASSETS, BOARD_UI_SPLASH_OK);
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_OTA, BOARD_UI_SPLASH_RUNNING);
 
     // Check for new firmware version
     CheckNewVersion();
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_OTA, SPLASH_STATE_OK);
-    laser_ui_splash_set_step(SPLASH_STEP_PROTOCOL, SPLASH_STATE_RUNNING);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_OTA, BOARD_UI_SPLASH_OK);
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_PROTOCOL, BOARD_UI_SPLASH_RUNNING);
 
     // Initialize the protocol
     InitializeProtocol();
-#if CONFIG_MSP3525_LASER_UI
-    laser_ui_splash_set_step(SPLASH_STEP_PROTOCOL, SPLASH_STATE_OK);
-#endif
+    BoardUiOnSplashStep(BOARD_UI_SPLASH_PROTOCOL, BOARD_UI_SPLASH_OK);
 
     // Signal completion to main loop
     xEventGroupSetBits(event_group_, MAIN_EVENT_ACTIVATION_DONE);

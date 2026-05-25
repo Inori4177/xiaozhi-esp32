@@ -5,6 +5,7 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "board_custom_ui.h"
 #include "ft6336_touch.h"
 
 #include <esp_log.h>
@@ -302,6 +303,12 @@ public:
         static GpioBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
         return &backlight;
     }
+
+#if CONFIG_MSP3525_LASER_UI
+    virtual const BoardCustomUiOps *GetCustomUiOps() override {
+        return Msp3525GetLaserUiOps();
+    }
+#endif
 };
 
 DECLARE_BOARD(Esp32s3Msp3525Lcd35Board);

@@ -5,7 +5,7 @@
 #include "pages/page_xiaozhi.h"
 
 #include "display.h"
-#include "lcd_display.h"
+#include "boards/common/board_custom_ui.h"
 
 #include <esp_log.h>
 
@@ -32,10 +32,7 @@ void laser_ui_init(Display *display)
     }
 
     DisplayLockGuard lock(display);
-    auto *lcd = dynamic_cast<LcdDisplay *>(display);
-    if (lcd != nullptr) {
-        lcd->SetLaserUiChromeVisible(true, false);
-    }
+    BoardUiSetChromeVisible(display, true, false);
 
     laser_ui_events_init();
     laser_ui_log_init();

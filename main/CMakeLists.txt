@@ -44,6 +44,7 @@ set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg"
 # Add board common files
 list(APPEND SOURCES
     "boards/common/board.cc"
+    "boards/common/board_custom_ui.cc"
     "boards/common/wifi_board.cc"
     "boards/common/ml307_board.cc"
     "boards/common/nt26_board.cc"

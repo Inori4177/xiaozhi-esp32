@@ -14,6 +14,8 @@
 #include "camera.h"
 #include "assets.h"
 
+struct BoardCustomUiOps;
+
 /**
  * Network events for unified callback
  */
@@ -82,6 +84,9 @@ public:
     virtual void SetPowerSaveLevel(PowerSaveLevel level) = 0;
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
+
+    /** Optional laser/custom UI hooks; default nullptr keeps stock xiaozhi UI. */
+    virtual const BoardCustomUiOps *GetCustomUiOps() { return nullptr; }
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \

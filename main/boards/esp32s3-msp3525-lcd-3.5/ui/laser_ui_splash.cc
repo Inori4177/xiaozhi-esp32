@@ -3,7 +3,7 @@
 #include "laser_ui.h"
 
 #include "display.h"
-#include "lcd_display.h"
+#include "boards/common/board_custom_ui.h"
 
 #include <esp_log.h>
 #include <cstring>
@@ -233,10 +233,7 @@ void laser_ui_splash_start(Display *display)
     g_splash.active = true;
 
     DisplayLockGuard lock(display);
-    auto *lcd = dynamic_cast<LcdDisplay *>(display);
-    if (lcd != nullptr) {
-        lcd->SetLaserUiChromeVisible(false, false);
-    }
+    BoardUiSetChromeVisible(display, false, false);
 
     lv_obj_t *screen = lv_screen_active();
     g_splash.overlay = lv_obj_create(screen);

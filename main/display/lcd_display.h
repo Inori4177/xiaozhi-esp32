@@ -57,7 +57,7 @@ public:
     // Set whether to hide chat messages/subtitles
     void SetHideSubtitle(bool hide);
 
-    void SetLaserUiChromeVisible(bool top_bottom_visible, bool center_visible);
+    void SetOverlayChromeVisible(bool top_bottom_visible, bool center_visible);
 };
 
 // SPI LCD display
