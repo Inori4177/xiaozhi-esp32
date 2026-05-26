@@ -830,11 +830,14 @@ list(APPEND SOURCES ${BOARD_SOURCES})
 if(CONFIG_MSP3525_LASER_UI)
     list(APPEND INCLUDE_DIRS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages)
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/assets)
     file(GLOB LASER_UI_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/*.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages/*.cc)
-    list(APPEND SOURCES ${LASER_UI_SRCS})
+    file(GLOB LASER_UI_IMG_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/assets/images/*.c)
+    list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_IMG_SRCS})
 endif()
 
 # Select audio processor according to Kconfig

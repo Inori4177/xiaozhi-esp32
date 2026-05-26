@@ -132,6 +132,10 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 #if CONFIG_SOC_CPU_CORES_NUM > 1
     port_cfg.task_affinity = 1;
 #endif
+#if CONFIG_MSP3525_LASER_UI
+    /* Laser UI: scaled images + deep print page need more than default stack */
+    port_cfg.task_stack = 12 * 1024;
+#endif
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");

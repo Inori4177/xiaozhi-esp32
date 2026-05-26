@@ -10,7 +10,7 @@ static lv_obj_t *g_power_label = nullptr;
 static lv_obj_t *g_speed_slider = nullptr;
 static lv_obj_t *g_speed_label = nullptr;
 
-static const float k_step_mm[] = {0.1f, 0.5f, 1.0f, 5.0f, 10.0f};
+static const float k_step_mm[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
 static const int k_step_count = sizeof(k_step_mm) / sizeof(k_step_mm[0]);
 
 static int clamp_step_index(int idx)
@@ -31,7 +31,7 @@ static void update_step_label(void)
     }
     int idx = clamp_step_index(static_cast<int>(lv_slider_get_value(g_step_slider)));
     char buf[24];
-    snprintf(buf, sizeof(buf), "步进 %.1fmm", static_cast<double>(k_step_mm[idx]));
+    snprintf(buf, sizeof(buf), "%dmm", static_cast<int>(k_step_mm[idx]));
     lv_label_set_text(g_step_label, buf);
 }
 

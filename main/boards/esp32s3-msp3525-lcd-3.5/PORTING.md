@@ -6,6 +6,9 @@
 esp32s3-msp3525-lcd-3.5/
   board_custom_ui.cc / .h    # 与小智核心的唯一对接实现
   ui/                        # 全部 LVGL 界面
+    assets/png/              # 原始 PNG
+    assets/images/           # LVGL 转换后的 .c/.h
+    assets/laser_ui_images.h # 图标 LV_IMG_DECLARE 汇总
   ft6336_touch.*             # 触摸（若硬件相同）
   esp32s3_msp3525_lcd_3_5.cc
   config.h / config.json
@@ -43,3 +46,9 @@ esp32s3-msp3525-lcd-3.5/
 打印页：运行 `~`、暂停 `!`、XY 点动 `G91 G0`、回零 `G28`。设置页：点「应用」发送材料注释、`M3 S*`、 `G1 F*`（100% = `LASER_GCODE_FEED_BASE_MM_MIN`）。
 
 无需再改 `application.cc`。
+
+## 点动图标
+
+1. PNG → `ui/assets/png/`
+2. `scripts/Image_Converter/lvgl_tools_gui.py` 输出到 `ui/assets/images/`
+3. 在 `ui/assets/laser_ui_images.h` 声明，在 `ui/pages/page_print.cc` 的 `make_jog_btn()` 使用
