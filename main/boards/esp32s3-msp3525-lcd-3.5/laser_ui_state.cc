@@ -13,15 +13,40 @@ static lv_obj_t *g_speed_label = nullptr;
 static const float k_step_mm[] = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f};
 static const int k_step_count = sizeof(k_step_mm) / sizeof(k_step_mm[0]);
 
-static int clamp_step_index(int idx)
+/** Power slider index 0..10 → 0%..100% in 10% steps. */
+static const int k_power_index_max = 10;
+
+/** Speed slider index 0..5 → 50%..300% in 50% steps. */
+static const int k_speed_pct[] = {50, 100, 150, 200, 250, 300};
+static const int k_speed_count = sizeof(k_speed_pct) / sizeof(k_speed_pct[0]);
+static const int k_speed_index_max = k_speed_count - 1;
+
+static int clamp_index(int idx, int max_index)
 {
     if (idx < 0) {
         return 0;
     }
-    if (idx >= k_step_count) {
-        return k_step_count - 1;
+    if (idx > max_index) {
+        return max_index;
     }
     return idx;
+}
+
+static int snap_slider_index(lv_obj_t *slider, int max_index)
+{
+    if (slider == nullptr) {
+        return 0;
+    }
+    int idx = clamp_index(static_cast<int>(lv_slider_get_value(slider)), max_index);
+    if (static_cast<int>(lv_slider_get_value(slider)) != idx) {
+        lv_slider_set_value(slider, idx, LV_ANIM_OFF);
+    }
+    return idx;
+}
+
+static int clamp_step_index(int idx)
+{
+    return clamp_index(idx, k_step_count - 1);
 }
 
 static void update_step_label(void)
@@ -40,9 +65,9 @@ static void update_power_label(void)
     if (g_power_label == nullptr || g_power_slider == nullptr) {
         return;
     }
-    int pct = static_cast<int>(lv_slider_get_value(g_power_slider));
+    int idx = snap_slider_index(g_power_slider, k_power_index_max);
     char buf[12];
-    snprintf(buf, sizeof(buf), "%d%%", pct);
+    snprintf(buf, sizeof(buf), "%d%%", idx * 10);
     lv_label_set_text(g_power_label, buf);
 }
 
@@ -51,9 +76,9 @@ static void update_speed_label(void)
     if (g_speed_label == nullptr || g_speed_slider == nullptr) {
         return;
     }
-    int pct = static_cast<int>(lv_slider_get_value(g_speed_slider));
+    int idx = snap_slider_index(g_speed_slider, k_speed_index_max);
     char buf[12];
-    snprintf(buf, sizeof(buf), "%d%%", pct);
+    snprintf(buf, sizeof(buf), "%d%%", k_speed_pct[idx]);
     lv_label_set_text(g_speed_label, buf);
 }
 
@@ -96,13 +121,17 @@ void laser_ui_state_on_step_slider(lv_event_t *e)
 
 void laser_ui_state_on_power_slider(lv_event_t *e)
 {
-    (void)e;
+    if (e == nullptr || lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) {
+        return;
+    }
     update_power_label();
 }
 
 void laser_ui_state_on_speed_slider(lv_event_t *e)
 {
-    (void)e;
+    if (e == nullptr || lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) {
+        return;
+    }
     update_speed_label();
 }
 
@@ -131,10 +160,12 @@ laser_ui_settings_t laser_ui_state_get_settings(void)
         s.material_index = static_cast<int>(lv_dropdown_get_selected(g_material_dd));
     }
     if (g_power_slider != nullptr) {
-        s.laser_power_pct = static_cast<int>(lv_slider_get_value(g_power_slider));
+        int idx = snap_slider_index(g_power_slider, k_power_index_max);
+        s.laser_power_pct = idx * 10;
     }
     if (g_speed_slider != nullptr) {
-        s.speed_pct = static_cast<int>(lv_slider_get_value(g_speed_slider));
+        int idx = snap_slider_index(g_speed_slider, k_speed_index_max);
+        s.speed_pct = k_speed_pct[idx];
     }
     return s;
 }

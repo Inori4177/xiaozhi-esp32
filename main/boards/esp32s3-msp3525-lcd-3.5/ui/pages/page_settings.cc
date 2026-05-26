@@ -12,14 +12,18 @@ static void emit_cb(lv_event_t *e)
 
 static void power_slider_cb(lv_event_t *e)
 {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) {
+        return;
+    }
     laser_ui_state_on_power_slider(e);
-    emit_cb(e);
 }
 
 static void speed_slider_cb(lv_event_t *e)
 {
+    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) {
+        return;
+    }
     laser_ui_state_on_speed_slider(e);
-    emit_cb(e);
 }
 
 static void material_cb(lv_event_t *e)
@@ -72,8 +76,8 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_flex_align(power_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *power = lv_slider_create(power_row);
     lv_obj_set_width(power, LV_PCT(72));
-    lv_slider_set_range(power, 0, 100);
-    lv_slider_set_value(power, 50, LV_ANIM_OFF);
+    lv_slider_set_range(power, 0, 10);
+    lv_slider_set_value(power, 5, LV_ANIM_OFF);
     lv_obj_add_event_cb(power, power_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_POWER_CHANGED)));
     lv_obj_t *power_val = lv_label_create(power_row);
@@ -95,8 +99,8 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_flex_align(speed_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *speed = lv_slider_create(speed_row);
     lv_obj_set_width(speed, LV_PCT(72));
-    lv_slider_set_range(speed, 10, 200);
-    lv_slider_set_value(speed, 100, LV_ANIM_OFF);
+    lv_slider_set_range(speed, 0, 5);
+    lv_slider_set_value(speed, 1, LV_ANIM_OFF);
     lv_obj_add_event_cb(speed, speed_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_SPEED_CHANGED)));
     lv_obj_t *speed_val = lv_label_create(speed_row);
