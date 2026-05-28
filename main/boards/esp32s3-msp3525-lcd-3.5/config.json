@@ -21,8 +21,15 @@
                 "CONFIG_ESPTOOLPY_FLASHMODE_QIO=y",
                 "CONFIG_SPIRAM=y",
                 "CONFIG_SPIRAM_MODE_OCT=y",
-                "CONFIG_SPIRAM_SPEED_40M=y",
-                "CONFIG_ESP_INT_WDT_TIMEOUT_MS=3000"
+                "CONFIG_SPIRAM_SPEED_80M=y",
+                "CONFIG_ESP_INT_WDT_TIMEOUT_MS=3000",
+                "CONFIG_COMPILER_OPTIMIZATION_PERF=y",
+                "CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y",
+                "CONFIG_LV_DEF_REFR_PERIOD=16",
+                "CONFIG_LV_USE_DRAW_SW_COMPLEX_GRADIENTS=y",
+                "CONFIG_LV_GRADIENT_MAX_STOPS=6",
+                "CONFIG_LV_DRAW_SW_SHADOW=n",
+                "CONFIG_LV_USE_SNAPSHOT=n"
             ]
         },
         {

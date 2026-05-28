@@ -17,7 +17,21 @@
 #include "board.h"
 #include "boards/common/board_custom_ui.h"
 
+#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
+#include "boards/esp32s3-msp3525-lcd-3.5/config.h"
+#endif
+
 #define TAG "LcdDisplay"
+
+#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
+#define LCD_SPI_DRAW_BUF_LINES  MSP3525_LVGL_DRAW_BUF_LINES
+#define LCD_SPI_USE_DOUBLE_BUF  1
+#define LCD_SPI_BUF_IN_PSRAM    1
+#else
+#define LCD_SPI_DRAW_BUF_LINES  20
+#define LCD_SPI_USE_DOUBLE_BUF  0
+#define LCD_SPI_BUF_IN_PSRAM    0
+#endif
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
@@ -114,7 +128,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
-#if CONFIG_SPIRAM
+#if CONFIG_SPIRAM && !CONFIG_MSP3525_LASER_UI
     // lv image cache, currently only PNG is supported
     size_t psram_size_mb = esp_psram_get_size() / 1024 / 1024;
     if (psram_size_mb >= 8) {
@@ -124,27 +138,42 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_image_cache_resize(512 * 1024, true);
         ESP_LOGI(TAG, "Use 512KB of PSRAM for image cache");
     }
+#elif CONFIG_MSP3525_LASER_UI
+    lv_image_cache_resize(0, false);
+    ESP_LOGI(TAG, "Laser UI: image cache disabled (assets are compiled-in)");
 #endif
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
+    /* 全中断驱动架构：提高 LVGL 任务优先级，缩短 tick 周期，空闲时事件队列休眠 */
+    port_cfg.task_priority = 4;
+    port_cfg.timer_period_ms = 5;
+    port_cfg.task_max_sleep_ms = 50;
+#if CONFIG_MSP3525_LASER_UI
+    port_cfg.task_stack = 12 * 1024;
+#endif
+#else
     port_cfg.task_priority = 1;
+#endif
 #if CONFIG_SOC_CPU_CORES_NUM > 1
     port_cfg.task_affinity = 1;
-#endif
-#if CONFIG_MSP3525_LASER_UI
-    /* Laser UI: scaled images + deep print page need more than default stack */
-    port_cfg.task_stack = 12 * 1024;
 #endif
     lvgl_port_init(&port_cfg);
 
     ESP_LOGI(TAG, "Adding LCD display");
+    const uint32_t draw_buf_pixels = static_cast<uint32_t>(width_) * LCD_SPI_DRAW_BUF_LINES;
+    ESP_LOGI(TAG, "LVGL draw buffer: %lu lines (%lu px, ~%lu KB%s)",
+             (unsigned long)LCD_SPI_DRAW_BUF_LINES,
+             (unsigned long)draw_buf_pixels,
+             (unsigned long)(draw_buf_pixels * sizeof(uint16_t) / 1024),
+             LCD_SPI_USE_DOUBLE_BUF ? ", double" : "");
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
-        .buffer_size = static_cast<uint32_t>(width_ * 20),
-        .double_buffer = false,
+        .buffer_size = draw_buf_pixels,
+        .double_buffer = LCD_SPI_USE_DOUBLE_BUF,
         .trans_size = 0,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
@@ -157,7 +186,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         .color_format = LV_COLOR_FORMAT_RGB565,
         .flags = {
             .buff_dma = 1,
-            .buff_spiram = 0,
+            .buff_spiram = LCD_SPI_BUF_IN_PSRAM,
             .sw_rotate = 0,
             .swap_bytes = 1,
             .full_refresh = 0,

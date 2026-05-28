@@ -16,6 +16,7 @@
 #define FT6336_REG_CIPHER_HIGH  0xA3
 #define FT6336_REG_THGROUP      0x80
 #define FT6336_REG_PERIODACTIVE 0x88
+#define FT6336_REG_G_MODE       0xA4
 
 static i2c_master_dev_handle_t dev_handle = nullptr;
 static uint16_t g_width = 0;
@@ -44,7 +45,20 @@ static void ft6336_apply_tuning(void)
     if (write_reg(FT6336_REG_PERIODACTIVE, TOUCH_PERIODACTIVE) != ESP_OK) {
         ESP_LOGW(TAG, "Failed to set PERIODACTIVE");
     }
-    ESP_LOGI(TAG, "Touch tuning THGROUP=0x%02x PERIODACTIVE=%d", TOUCH_THGROUP, TOUCH_PERIODACTIVE);
+#if TOUCH_USE_INTERRUPT
+    /* G_MODE=1 trigger：每次触摸/坐标更新产生 INT 脉冲，配合 LV_INDEV_MODE_EVENT */
+    if (write_reg(FT6336_REG_G_MODE, TOUCH_G_MODE_TRIGGER) != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to set G_MODE trigger");
+    }
+#endif
+    ESP_LOGI(TAG, "Touch tuning THGROUP=0x%02x PERIODACTIVE=%d G_MODE=%d",
+             TOUCH_THGROUP, TOUCH_PERIODACTIVE,
+#if TOUCH_USE_INTERRUPT
+             TOUCH_G_MODE_TRIGGER
+#else
+             0
+#endif
+             );
 }
 
 static bool ft6336_reset_check(void)

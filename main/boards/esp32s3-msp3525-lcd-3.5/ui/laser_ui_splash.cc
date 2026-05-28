@@ -1,16 +1,19 @@
 #include "laser_ui_splash.h"
 #include "laser_ui_layout.h"
 #include "laser_ui.h"
+#include "splash_bg_gif.h"
 
 #include "display.h"
 #include "boards/common/board_custom_ui.h"
 
 #include <esp_log.h>
+#include <font_awesome.h>
 #include <cstring>
 
 static const char *TAG = "laser_ui_splash";
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
+LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 
 // One visible glyph per entry (left-to-right typewriter order). UTF-8 bytes, no u8"" (C++20 char8_t).
 static const char *const kSplashTitleGlyphs[] = {
@@ -185,19 +188,6 @@ static void title_timer_cb(lv_timer_t *timer)
     lv_label_set_text(g_splash.title_label, g_splash.title_buf);
 }
 
-static void draw_grid_lines(lv_obj_t *parent)
-{
-    for (int y = 0; y < LV_VER_RES; y += 20) {
-        lv_obj_t *line = lv_obj_create(parent);
-        lv_obj_set_size(line, LV_HOR_RES, 1);
-        lv_obj_set_pos(line, 0, y);
-        lv_obj_set_style_bg_color(line, CYBER_GRID, LV_PART_MAIN);
-        lv_obj_set_style_bg_opa(line, LV_OPA_30, LV_PART_MAIN);
-        lv_obj_set_style_border_width(line, 0, LV_PART_MAIN);
-        lv_obj_clear_flag(line, LV_OBJ_FLAG_CLICKABLE);
-    }
-}
-
 static void overlay_opa_anim(void *obj, int32_t v)
 {
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), LV_PART_MAIN);
@@ -214,6 +204,7 @@ static void splash_fade_ready_cb(lv_anim_t *anim)
         lv_timer_delete(g_splash.title_timer);
         g_splash.title_timer = nullptr;
     }
+    splash_bg_gif_stop();
     g_splash.active = false;
     g_splash.finishing = false;
 
@@ -236,27 +227,45 @@ void laser_ui_splash_start(Display *display)
     BoardUiSetChromeVisible(display, false, false);
 
     lv_obj_t *screen = lv_screen_active();
+    lv_obj_set_style_bg_color(screen, SPLASH_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
+
     g_splash.overlay = lv_obj_create(screen);
     lv_obj_set_size(g_splash.overlay, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_bg_color(g_splash.overlay, CYBER_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(g_splash.overlay, SPLASH_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_splash.overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_splash.overlay, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(g_splash.overlay, 0, LV_PART_MAIN);
     lv_obj_clear_flag(g_splash.overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_move_foreground(g_splash.overlay);
 
-    draw_grid_lines(g_splash.overlay);
+    splash_bg_gif_start(g_splash.overlay);
 
     g_splash.title_buf[0] = '\0';
     g_splash.title_glyph_index = 0;
 
-    g_splash.title_label = lv_label_create(g_splash.overlay);
+    lv_obj_t *title_row = lv_obj_create(g_splash.overlay);
+    lv_obj_set_size(title_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(title_row, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(title_row, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(title_row, 0, LV_PART_MAIN);
+    lv_obj_set_flex_flow(title_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(title_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(title_row, 6, LV_PART_MAIN);
+    lv_obj_align(title_row, LV_ALIGN_TOP_MID, 0, 24);
+
+    lv_obj_t *title_icon = lv_label_create(title_row);
+    lv_label_set_text(title_icon, FONT_AWESOME_MICROCHIP_AI);
+    lv_obj_set_style_text_font(title_icon, &BUILTIN_ICON_FONT, LV_PART_MAIN);
+    lv_obj_set_style_text_color(title_icon, CYBER_CYAN, LV_PART_MAIN);
+
+    g_splash.title_label = lv_label_create(title_row);
     lv_label_set_text(g_splash.title_label, "");
-    lv_obj_set_width(g_splash.title_label, LV_HOR_RES - 16);
+    lv_obj_set_width(g_splash.title_label, LV_SIZE_CONTENT);
     lv_label_set_long_mode(g_splash.title_label, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_align(g_splash.title_label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_text_align(g_splash.title_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     lv_obj_set_style_text_color(g_splash.title_label, CYBER_CYAN, LV_PART_MAIN);
     lv_obj_set_style_text_font(g_splash.title_label, &BUILTIN_TEXT_FONT, LV_PART_MAIN);
-    lv_obj_align(g_splash.title_label, LV_ALIGN_TOP_MID, 0, 24);
 
     g_splash.step_list = lv_obj_create(g_splash.overlay);
     lv_obj_set_size(g_splash.step_list, LV_HOR_RES - 24, 180);
@@ -338,6 +347,8 @@ void laser_ui_splash_finish(Display *display)
 
     g_splash.finishing = true;
     DisplayLockGuard lock(display);
+
+    splash_bg_gif_stop();
 
     if (g_splash.title_timer != nullptr) {
         lv_timer_pause(g_splash.title_timer);

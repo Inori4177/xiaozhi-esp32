@@ -40,6 +40,9 @@
  * TFT_eSPI ST7796_Rotation.h case 1: MV+BGR => swap_xy=true, mirror=false */
 #define DISPLAY_WIDTH           480
 #define DISPLAY_HEIGHT          320
+
+/* LVGL partial buffer lines (480*26*2=24.9KB, under typical SPI chunk limits). */
+#define MSP3525_LVGL_DRAW_BUF_LINES  26
 #define DISPLAY_MIRROR_X        false
 #define DISPLAY_MIRROR_Y        false
 #define DISPLAY_SWAP_XY         true
@@ -52,8 +55,12 @@
 #define TOUCH_I2C_SDA_PIN       GPIO_NUM_8
 #define TOUCH_I2C_SCL_PIN       GPIO_NUM_9
 #define TOUCH_RST_PIN           GPIO_NUM_10
-/* 触摸中断 CTP_INT -> GPIO16（可选，仅用于唤醒 LVGL 任务；读触摸靠 LV_INDEV_MODE_TIMER） */
+/* 触摸中断 CTP_INT -> GPIO16（LV_INDEV_MODE_EVENT + lvgl_port_task_wake 全中断驱动） */
 #define TOUCH_INT_PIN           GPIO_NUM_16
+#define TOUCH_USE_INTERRUPT     1
+
+/* FT6336 G_MODE：0=轮询(INT 保持低) 1=触发(每次触摸事件 INT 脉冲，EVENT 模式必需) */
+#define TOUCH_G_MODE_TRIGGER    1
 
 /* 原始坐标映射（可按实机微调，缩小死区） */
 #define TOUCH_RAW_X_MIN         0
@@ -61,9 +68,9 @@
 #define TOUCH_RAW_Y_MIN         0
 #define TOUCH_RAW_Y_MAX         480
 
-/* FT6336 灵敏度：THGROUP 越小越易触发；PERIODACTIVE 越小扫描越快（单位约 10ms） */
+/* FT6336 灵敏度：THGROUP 越小越易触发；PERIODACTIVE 越小坐标更新越快（单位约 10ms） */
 #define TOUCH_THGROUP           0x02
-#define TOUCH_PERIODACTIVE      2
+#define TOUCH_PERIODACTIVE      1
 
 /* 映射死区补偿：略扩大原始坐标范围，减轻边缘“按不到” */
 #define TOUCH_MAP_MARGIN        24

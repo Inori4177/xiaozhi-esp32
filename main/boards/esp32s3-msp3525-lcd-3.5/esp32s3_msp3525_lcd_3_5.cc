@@ -39,7 +39,8 @@ static void touch_setup_interrupt(void)
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_NEGEDGE,
+        /* trigger 模式下 INT 为脉冲；ANYEDGE 同时覆盖按下/抬起/坐标更新 */
+        .intr_type = GPIO_INTR_ANYEDGE,
     };
     gpio_config(&cfg);
     esp_err_t err = gpio_install_isr_service(0);
@@ -47,7 +48,7 @@ static void touch_setup_interrupt(void)
         ESP_ERROR_CHECK(err);
     }
     gpio_isr_handler_add(TOUCH_INT_PIN, touch_int_isr, nullptr);
-    ESP_LOGI(TAG, "Touch INT on GPIO%d (LVGL wake assist)", (int)TOUCH_INT_PIN);
+    ESP_LOGI(TAG, "Touch INT on GPIO%d (LV_INDEV_MODE_EVENT)", (int)TOUCH_INT_PIN);
 }
 
 /* LVGL_Demos/ST7796_Init.h — 不含 0x36/0x3A/0x21/0x29（由 esp_lcd API 统一管理，见乐鑫 SPI LCD 移植文档） */
@@ -211,13 +212,27 @@ private:
         /* rotation=1 matches LVGL_Demos: setRotation(1) -> FT6336 ROTATION_RIGHT */
         ft6336_touch_init(i2c_bus_, DISPLAY_WIDTH, DISPLAY_HEIGHT, FT6336_ROTATION_RIGHT);
 
+        if (!lvgl_port_lock(0)) {
+            ESP_LOGE(TAG, "Failed to lock LVGL port for touch init");
+            return;
+        }
+
         g_touch_indev = lv_indev_create();
         lv_indev_set_type(g_touch_indev, LV_INDEV_TYPE_POINTER);
         lv_indev_set_read_cb(g_touch_indev, touchpad_read);
         lv_indev_set_display(g_touch_indev, lv_display_get_default());
-        /* TIMER：lv_timer_handler 周期读触摸（与 LVGL_Demos 一致，不依赖 wake 链） */
-        lv_indev_set_mode(g_touch_indev, LV_INDEV_MODE_TIMER);
-        touch_setup_interrupt();
+
+        if (TOUCH_USE_INTERRUPT && TOUCH_INT_PIN != GPIO_NUM_NC) {
+            /* 全中断驱动：INT -> lvgl_port_task_wake -> lv_indev_read（esp_lvgl_port 推荐） */
+            lv_indev_set_mode(g_touch_indev, LV_INDEV_MODE_EVENT);
+            touch_setup_interrupt();
+            ESP_LOGI(TAG, "Touch input: EVENT mode (INT + esp_lvgl_port wake queue)");
+        } else {
+            lv_indev_set_mode(g_touch_indev, LV_INDEV_MODE_TIMER);
+            ESP_LOGW(TAG, "Touch input: TIMER mode (no INT pin)");
+        }
+
+        lvgl_port_unlock();
     }
 
     void InitializeButtons() {
