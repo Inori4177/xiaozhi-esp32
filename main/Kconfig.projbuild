@@ -593,7 +593,7 @@ choice ESP_S3_LCD_EV_Board_Version_TYPE
 endchoice
 
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_NT26 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
+    depends on BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_NT26 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_HU_087
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
@@ -972,12 +972,13 @@ menu "TAIJIPAI_S3_CONFIG"
 endmenu
 
 menu "MSP3525 3.5 inch Board"
-    depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || BOARD_TYPE_ESP32S3_1_81TFT_LCD_TEST
+    depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || BOARD_TYPE_ESP32S3_1_81TFT_LCD_TEST || BOARD_TYPE_BREAD_COMPACT_WIFI
 
 config MSP3525_LASER_UI
     bool "Laser engraver UI framework (cyber splash + 4-page shell)"
+    default y if BOARD_TYPE_BREAD_COMPACT_WIFI
     default n
-    depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
+    depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Modular LVGL UI for laser engraver on MSP3525 3.5 inch display.
         Cyber startup splash, 4-page navigation shell, xiaozhi log integration.

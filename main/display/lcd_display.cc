@@ -19,13 +19,22 @@
 
 #if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
 #include "boards/esp32s3-msp3525-lcd-3.5/config.h"
+#elif CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+#include "boards/bread-compact-wifi/config.h"
 #endif
 
 #define TAG "LcdDisplay"
 
-#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
+#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
 #define LCD_SPI_DRAW_BUF_LINES  MSP3525_LVGL_DRAW_BUF_LINES
+#if CONFIG_MSP3525_LASER_UI
+/* 乐鑫 esp_lvgl_port：PSRAM 画板 + SRAM trans_size，单缓冲省 ~50% 条带显存 */
+#define LCD_SPI_USE_DOUBLE_BUF  0
+#define LCD_SPI_USE_PSRAM_CANVAS  1
+#else
 #define LCD_SPI_USE_DOUBLE_BUF  1
+#define LCD_SPI_USE_PSRAM_CANVAS  0
+#endif
 #define LCD_SPI_BUF_IN_PSRAM    1
 #else
 #define LCD_SPI_DRAW_BUF_LINES  20
@@ -145,13 +154,13 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Initialize LVGL port");
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
-#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
+#if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
     /* 全中断驱动架构：提高 LVGL 任务优先级，缩短 tick 周期，空闲时事件队列休眠 */
     port_cfg.task_priority = 4;
     port_cfg.timer_period_ms = 5;
     port_cfg.task_max_sleep_ms = 50;
 #if CONFIG_MSP3525_LASER_UI
-    port_cfg.task_stack = 12 * 1024;
+    port_cfg.task_stack = 8 * 1024;
 #endif
 #else
     port_cfg.task_priority = 1;
@@ -163,18 +172,24 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 
     ESP_LOGI(TAG, "Adding LCD display");
     const uint32_t draw_buf_pixels = static_cast<uint32_t>(width_) * LCD_SPI_DRAW_BUF_LINES;
-    ESP_LOGI(TAG, "LVGL draw buffer: %lu lines (%lu px, ~%lu KB%s)",
+#if LCD_SPI_USE_PSRAM_CANVAS
+    const uint32_t trans_buf_pixels = static_cast<uint32_t>(width_) * MSP3525_LVGL_TRANS_BUF_LINES;
+#else
+    const uint32_t trans_buf_pixels = 0;
+#endif
+    ESP_LOGI(TAG, "LVGL draw buffer: %lu lines (%lu px, ~%lu KB%s%s)",
              (unsigned long)LCD_SPI_DRAW_BUF_LINES,
              (unsigned long)draw_buf_pixels,
              (unsigned long)(draw_buf_pixels * sizeof(uint16_t) / 1024),
-             LCD_SPI_USE_DOUBLE_BUF ? ", double" : "");
+             LCD_SPI_USE_DOUBLE_BUF ? ", double" : ", single",
+             trans_buf_pixels ? ", PSRAM+SRAM trans" : "");
     const lvgl_port_display_cfg_t display_cfg = {
         .io_handle = panel_io_,
         .panel_handle = panel_,
         .control_handle = nullptr,
         .buffer_size = draw_buf_pixels,
         .double_buffer = LCD_SPI_USE_DOUBLE_BUF,
-        .trans_size = 0,
+        .trans_size = trans_buf_pixels,
         .hres = static_cast<uint32_t>(width_),
         .vres = static_cast<uint32_t>(height_),
         .monochrome = false,
@@ -185,7 +200,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         },
         .color_format = LV_COLOR_FORMAT_RGB565,
         .flags = {
-            .buff_dma = 1,
+            .buff_dma = LCD_SPI_USE_PSRAM_CANVAS ? 0 : 1,
             .buff_spiram = LCD_SPI_BUF_IN_PSRAM,
             .sw_rotate = 0,
             .swap_bytes = 1,

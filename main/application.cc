@@ -1101,6 +1101,16 @@ void Application::SendMcpMessage(const std::string& payload) {
     });
 }
 
+// [bread-compact-wifi/CNC 整合] KanjiVGController 后台 xTask 调用；与 SendMcpMessage 相同模式，
+// 避免在 engrave 任务里直接访问 protocol_。上游若已有等价封装，合并时二选一，勿重复定义。
+void Application::SendListenDetect(const std::string& text) {
+    Schedule([this, text = std::move(text)]() {
+        if (protocol_) {
+            protocol_->SendListenDetect(text);
+        }
+    });
+}
+
 void Application::SetAecMode(AecMode mode) {
     aec_mode_ = mode;
     Schedule([this]() {

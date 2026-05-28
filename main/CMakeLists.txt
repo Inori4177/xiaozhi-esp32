@@ -62,7 +62,9 @@ list(APPEND SOURCES
     "boards/common/sy6970.cc"
     "boards/common/system_reset.cc"
 )
-list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+list(APPEND INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/CNC)
 
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
@@ -88,8 +90,16 @@ set(EMOTE_RESOLUTION "320_240")
 # Set default assets if the board uses partition table V2
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BOARD_TYPE "bread-compact-wifi")
-    set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
-    set(BUILTIN_ICON_FONT font_awesome_14_1)
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi)
+    if(CONFIG_MSP3525_LASER_UI)
+        set(BUILTIN_TEXT_FONT font_puhui_20_4)
+        set(BUILTIN_ICON_FONT font_awesome_20_4)
+        set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+    else()
+        set(BUILTIN_TEXT_FONT font_puhui_basic_20_4)
+        set(BUILTIN_ICON_FONT font_awesome_20_4)
+        set(DEFAULT_EMOJI_COLLECTION twemoji_64)
+    endif()
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
     set(BUILTIN_TEXT_FONT font_puhui_basic_14_1)
@@ -828,15 +838,20 @@ endif()
 list(APPEND SOURCES ${BOARD_SOURCES})
 
 if(CONFIG_MSP3525_LASER_UI)
+    if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+        set(LASER_UI_BOARD_DIR bread-compact-wifi)
+    else()
+        set(LASER_UI_BOARD_DIR esp32s3-msp3525-lcd-3.5)
+    endif()
     list(APPEND INCLUDE_DIRS
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/assets)
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/pages
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/assets)
     file(GLOB LASER_UI_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/*.cc
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/pages/*.cc)
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/*.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/pages/*.cc)
     file(GLOB LASER_UI_IMG_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/esp32s3-msp3525-lcd-3.5/ui/assets/images/*.c)
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/assets/images/*.c)
     list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_IMG_SRCS})
 endif()
 

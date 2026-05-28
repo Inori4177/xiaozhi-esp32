@@ -42,7 +42,8 @@
 #define DISPLAY_HEIGHT          320
 
 /* LVGL partial buffer lines (480*26*2=24.9KB, under typical SPI chunk limits). */
-#define MSP3525_LVGL_DRAW_BUF_LINES  26
+#define MSP3525_LVGL_DRAW_BUF_LINES   32
+#define MSP3525_LVGL_TRANS_BUF_LINES  20
 #define DISPLAY_MIRROR_X        false
 #define DISPLAY_MIRROR_Y        false
 #define DISPLAY_SWAP_XY         true

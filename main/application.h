@@ -108,6 +108,10 @@ public:
     bool UpgradeFirmware(const std::string& url, const std::string& version = "");
     bool CanEnterSleepMode();
     void SendMcpMessage(const std::string& payload);
+    /** [bread-compact-wifi/CNC 整合] 雕刻完成后从后台任务通知服务器（listen/detect）。
+     *  实现见 application.cc，内部 Schedule 到主线程再调 protocol_->SendListenDetect。
+     *  合并上游时若 upstream 已有同名 API，保留线程安全封装，勿直接删改 gcode_controller 调用。 */
+    void SendListenDetect(const std::string& text);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
     void PlaySound(const std::string_view& sound);
