@@ -23,3 +23,7 @@ void laser_ui_state_on_material_changed(lv_event_t *e);
 
 float laser_ui_state_get_jog_step_mm(void);
 laser_ui_settings_t laser_ui_state_get_settings(void);
+
+void laser_ui_state_set_pick_origin(float x_mm, float y_mm);
+bool laser_ui_state_get_pick_origin(float *x_mm, float *y_mm);
+void laser_ui_state_clear_pick_origin(void);

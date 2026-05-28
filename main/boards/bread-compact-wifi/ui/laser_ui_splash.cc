@@ -193,6 +193,14 @@ static void overlay_opa_anim(void *obj, int32_t v)
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), LV_PART_MAIN);
 }
 
+static void splash_deferred_laser_ui_init(void *user_data)
+{
+    auto *display = static_cast<Display *>(user_data);
+    if (display != nullptr) {
+        laser_ui_init(display);
+    }
+}
+
 static void splash_fade_ready_cb(lv_anim_t *anim)
 {
     (void)anim;
@@ -209,7 +217,8 @@ static void splash_fade_ready_cb(lv_anim_t *anim)
     g_splash.finishing = false;
 
     if (g_splash.display != nullptr) {
-        laser_ui_init(g_splash.display);
+        /* Defer init to avoid lvgl_port_lock re-entry from anim ready callback. */
+        lv_async_call(splash_deferred_laser_ui_init, g_splash.display);
     }
 }
 

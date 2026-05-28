@@ -850,9 +850,16 @@ if(CONFIG_MSP3525_LASER_UI)
     file(GLOB LASER_UI_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/*.cc
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/pages/*.cc)
+    file(GLOB LASER_UI_CNC_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/cnc/*.cc)
+    file(GLOB LASER_UI_PICK_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/pick/*.cc)
+    file(GLOB LASER_UI_MCP_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/mcp/*.cc)
     file(GLOB LASER_UI_IMG_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/assets/images/*.c)
-    list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_IMG_SRCS})
+    list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_CNC_SRCS} ${LASER_UI_PICK_SRCS}
+        ${LASER_UI_MCP_SRCS} ${LASER_UI_IMG_SRCS})
 endif()
 
 # Select audio processor according to Kconfig

@@ -14,12 +14,8 @@ typedef enum {
     LASER_EVT_POWER_CHANGED,
     LASER_EVT_SPEED_CHANGED,
     LASER_EVT_SETTINGS_APPLY,
-    LASER_EVT_DESIGN_IMPORT,
-    LASER_EVT_DESIGN_CROP,
-    LASER_EVT_DESIGN_SELECT,
-    LASER_EVT_DESIGN_CALIB,
-    LASER_EVT_DESIGN_TAB_ORIGINAL,
-    LASER_EVT_DESIGN_TAB_PREVIEW,
+    LASER_EVT_PICK_CONFIRM,
+    LASER_EVT_PICK_RESET,
 } laser_ui_event_id_t;
 
 typedef void (*laser_ui_event_handler_t)(laser_ui_event_id_t id, void *user_data);

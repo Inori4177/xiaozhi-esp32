@@ -1378,4 +1378,10 @@ void LcdDisplay::SetOverlayChromeVisible(bool top_bottom_visible, bool center_vi
     set_visible(bottom_bar_, top_bottom_visible);
     set_visible(emoji_box_, center_visible);
     set_visible(preview_image_, center_visible);
+#if CONFIG_MSP3525_LASER_UI
+    /* Laser UI draws on screen; hide full-screen default container when center chrome is off. */
+    if (!center_visible) {
+        set_visible(container_, false);
+    }
+#endif
 }

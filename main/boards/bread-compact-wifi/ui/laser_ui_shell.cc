@@ -3,7 +3,7 @@
 #include "laser_ui_widgets.h"
 #include "pages/page_print.h"
 #include "pages/page_settings.h"
-#include "pages/page_design.h"
+#include "pages/page_pick.h"
 #include "pages/page_xiaozhi.h"
 
 #include <font_awesome.h>
@@ -66,6 +66,10 @@ static void shell_open_page(LaserUiShell *shell, LaserPage page, bool animate)
         return;
     }
 
+    if (shell->page_open && shell->current == LaserPage::Pick && page != LaserPage::Pick) {
+        page_pick_on_hide();
+    }
+
     const int panel_w = lv_obj_get_width(shell->content_host);
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {
         if (shell->pages[i] == nullptr) {
@@ -99,6 +103,10 @@ static void shell_open_page(LaserUiShell *shell, LaserPage page, bool animate)
         }
     }
 
+    if (page == LaserPage::Pick) {
+        page_pick_on_show();
+    }
+
     if (!animate) {
         lv_obj_set_x(target, 0);
         shell_raise_nav(shell);
@@ -121,6 +129,10 @@ static void shell_close_page(LaserUiShell *shell, bool animate)
 {
     if (shell == nullptr || !shell->page_open) {
         return;
+    }
+
+    if (shell->current == LaserPage::Pick) {
+        page_pick_on_hide();
     }
 
     const int panel_w = lv_obj_get_width(shell->content_host);
@@ -292,7 +304,7 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
 
     shell->pages[static_cast<int>(LaserPage::Print)] = page_print_create(shell->content_host);
     shell->pages[static_cast<int>(LaserPage::Settings)] = page_settings_create(shell->content_host);
-    shell->pages[static_cast<int>(LaserPage::Design)] = page_design_create(shell->content_host);
+    shell->pages[static_cast<int>(LaserPage::Pick)] = page_pick_create(shell->content_host);
     shell->pages[static_cast<int>(LaserPage::Xiaozhi)] = page_xiaozhi_create(shell->content_host);
 
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {

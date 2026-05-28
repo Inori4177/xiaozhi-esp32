@@ -21,6 +21,10 @@ static const int k_speed_pct[] = {50, 100, 150, 200, 250, 300};
 static const int k_speed_count = sizeof(k_speed_pct) / sizeof(k_speed_pct[0]);
 static const int k_speed_index_max = k_speed_count - 1;
 
+static float g_pick_origin_x = 0.0f;
+static float g_pick_origin_y = 0.0f;
+static bool g_pick_origin_valid = false;
+
 static int clamp_index(int idx, int max_index)
 {
     if (idx < 0) {
@@ -168,4 +172,30 @@ laser_ui_settings_t laser_ui_state_get_settings(void)
         s.speed_pct = k_speed_pct[idx];
     }
     return s;
+}
+
+void laser_ui_state_set_pick_origin(float x_mm, float y_mm)
+{
+    g_pick_origin_x = x_mm;
+    g_pick_origin_y = y_mm;
+    g_pick_origin_valid = true;
+}
+
+bool laser_ui_state_get_pick_origin(float *x_mm, float *y_mm)
+{
+    if (!g_pick_origin_valid) {
+        return false;
+    }
+    if (x_mm != nullptr) {
+        *x_mm = g_pick_origin_x;
+    }
+    if (y_mm != nullptr) {
+        *y_mm = g_pick_origin_y;
+    }
+    return true;
+}
+
+void laser_ui_state_clear_pick_origin(void)
+{
+    g_pick_origin_valid = false;
 }

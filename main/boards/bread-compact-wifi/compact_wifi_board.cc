@@ -9,6 +9,9 @@
 #include "mcp_server.h"
 #include "lamp_controller.h"
 #include "gcode_controller.h"
+#if CONFIG_MSP3525_LASER_UI
+#include "ui/mcp/ui_kanjivg_mcp_bridge.h"
+#endif
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "board_custom_ui.h"
@@ -288,6 +291,9 @@ private:
         static LampController lamp(LAMP_GPIO);
         static KanjiVGController engraving;
         engraving.Initialize(McpServer::GetInstance());
+#if CONFIG_MSP3525_LASER_UI
+        ui_kanjivg_mcp_bridge_register();
+#endif
     }
 
 public:

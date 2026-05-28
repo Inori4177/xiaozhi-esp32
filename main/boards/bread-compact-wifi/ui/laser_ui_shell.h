@@ -5,7 +5,7 @@
 enum class LaserPage {
     Print = 0,
     Settings,
-    Design,
+    Pick,
     Xiaozhi,
     Count,
 };
