@@ -69,6 +69,9 @@ static void shell_open_page(LaserUiShell *shell, LaserPage page, bool animate)
     if (shell->page_open && shell->current == LaserPage::Pick && page != LaserPage::Pick) {
         page_pick_on_hide();
     }
+    if (shell->page_open && shell->current == LaserPage::Print && page != LaserPage::Print) {
+        page_print_on_hide();
+    }
 
     const int panel_w = lv_obj_get_width(shell->content_host);
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {
@@ -106,6 +109,9 @@ static void shell_open_page(LaserUiShell *shell, LaserPage page, bool animate)
     if (page == LaserPage::Pick) {
         page_pick_on_show();
     }
+    if (page == LaserPage::Print) {
+        page_print_on_show();
+    }
 
     if (!animate) {
         lv_obj_set_x(target, 0);
@@ -133,6 +139,9 @@ static void shell_close_page(LaserUiShell *shell, bool animate)
 
     if (shell->current == LaserPage::Pick) {
         page_pick_on_hide();
+    }
+    if (shell->current == LaserPage::Print) {
+        page_print_on_hide();
     }
 
     const int panel_w = lv_obj_get_width(shell->content_host);

@@ -9,12 +9,14 @@
 #include "planner.h"
 #include "stepper.h"
 #include "stepping_engine.h"
+#include "motion_controller.h"
 
 #include <cmath>
 #include <cstring>
 #include <string>
 
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -25,6 +27,19 @@ static float s_feed_mm_min = static_cast<float>(UI_CNC_FEED_BASE_MM_MIN);
 static volatile bool s_busy = false;
 static QueueHandle_t s_work_queue = nullptr;
 static TaskHandle_t s_worker_task = nullptr;
+
+static volatile ui_cnc_work_state_t s_work_state = UI_CNC_WORK_IDLE;
+static volatile uint8_t s_progress_pct = 0;
+static volatile uint32_t s_elapsed_sec = 0;
+static volatile uint32_t s_eta_sec = 0;
+static volatile bool s_has_eta = false;
+static volatile bool s_is_print_job = false;
+static volatile bool s_paused = false;
+
+static int64_t s_job_start_us = 0;
+static int s_job_total_cmds = 0;
+static int s_job_done_cmds = 0;
+static float s_job_total_est_sec = 0.0f;
 
 typedef enum {
     CNC_WORK_GCODE = 0,
@@ -41,6 +56,142 @@ typedef struct {
 } cnc_work_msg_t;
 
 static void cnc_worker_task(void *arg);
+
+static void reset_job_status(void)
+{
+    s_work_state = UI_CNC_WORK_IDLE;
+    s_progress_pct = 0;
+    s_elapsed_sec = 0;
+    s_eta_sec = 0;
+    s_has_eta = false;
+    s_is_print_job = false;
+    s_paused = false;
+    s_job_start_us = 0;
+    s_job_total_cmds = 0;
+    s_job_done_cmds = 0;
+    s_job_total_est_sec = 0.0f;
+}
+
+static void refresh_elapsed_locked(void)
+{
+    if (s_job_start_us <= 0) {
+        s_elapsed_sec = 0;
+        return;
+    }
+    const int64_t now = esp_timer_get_time();
+    const int64_t elapsed_us = now - s_job_start_us;
+    s_elapsed_sec = static_cast<uint32_t>(elapsed_us / 1000000LL);
+}
+
+static void refresh_progress_locked(void)
+{
+    refresh_elapsed_locked();
+
+    if (s_job_total_cmds <= 0) {
+        s_progress_pct = 0;
+        s_has_eta = false;
+        return;
+    }
+
+    if (s_job_done_cmds >= s_job_total_cmds) {
+        s_progress_pct = 100;
+        s_eta_sec = 0;
+        s_has_eta = true;
+        return;
+    }
+
+    s_progress_pct = static_cast<uint8_t>((s_job_done_cmds * 100) / s_job_total_cmds);
+    if (s_job_done_cmds > 0 && s_elapsed_sec > 0) {
+        const uint32_t total_est = static_cast<uint32_t>(
+            (static_cast<float>(s_elapsed_sec) * static_cast<float>(s_job_total_cmds)) /
+            static_cast<float>(s_job_done_cmds));
+        s_eta_sec = (total_est > s_elapsed_sec) ? (total_est - s_elapsed_sec) : 0;
+        s_has_eta = true;
+    } else if (s_job_total_est_sec > 0.0f) {
+        const float ratio = static_cast<float>(s_job_done_cmds) / static_cast<float>(s_job_total_cmds);
+        const uint32_t total_est = static_cast<uint32_t>(s_job_total_est_sec);
+        const uint32_t elapsed = static_cast<uint32_t>(s_job_total_est_sec * ratio);
+        s_eta_sec = (total_est > elapsed) ? (total_est - elapsed) : 0;
+        s_has_eta = true;
+    } else {
+        s_has_eta = false;
+    }
+}
+
+static void estimate_commands(const std::vector<GCodeCommand> &commands, int *out_total_cmds,
+                              float *out_total_sec)
+{
+    if (out_total_cmds != nullptr) {
+        *out_total_cmds = static_cast<int>(commands.size());
+    }
+    if (out_total_sec == nullptr) {
+        return;
+    }
+
+    float pos_x = 0.0f;
+    float pos_y = 0.0f;
+    float feed = s_feed_mm_min;
+    float total_sec = 0.0f;
+
+    for (const auto &cmd : commands) {
+        switch (cmd.type) {
+        case GCodeCommand::G1:
+            if (cmd.feed_rate > 0.0f) {
+                feed = cmd.feed_rate;
+            }
+            /* fallthrough */
+        case GCodeCommand::G0: {
+            const float tx = std::isnan(cmd.x) ? pos_x : cmd.x;
+            const float ty = std::isnan(cmd.y) ? pos_y : cmd.y;
+            const float dx = tx - pos_x;
+            const float dy = ty - pos_y;
+            const float mm = sqrtf(dx * dx + dy * dy);
+            if (mm > 0.001f) {
+                const float rate =
+                    (cmd.type == GCodeCommand::G0) ? UI_CNC_RAPID_FEED_MM_MIN : feed;
+                const float safe_rate = (rate < 1.0f) ? 1.0f : rate;
+                total_sec += (mm / safe_rate) * 60.0f;
+            }
+            pos_x = tx;
+            pos_y = ty;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    *out_total_sec = total_sec;
+}
+
+static void begin_tracked_job(const std::vector<GCodeCommand> &commands, bool print_job)
+{
+    s_job_start_us = esp_timer_get_time();
+    s_job_done_cmds = 0;
+    estimate_commands(commands, &s_job_total_cmds, &s_job_total_est_sec);
+    s_is_print_job = print_job;
+    s_paused = false;
+    s_work_state = print_job ? UI_CNC_WORK_RUNNING : UI_CNC_WORK_JOGGING;
+    refresh_progress_locked();
+}
+
+static void motion_progress_cb(size_t done, size_t total, void *user_data)
+{
+    (void)user_data;
+    s_job_total_cmds = static_cast<int>(total);
+    s_job_done_cmds = static_cast<int>(done);
+    refresh_progress_locked();
+}
+
+static void bind_motion_progress_callback(void)
+{
+    static bool bound = false;
+    if (bound) {
+        return;
+    }
+    MotionController::SetCommandProgressCallback(motion_progress_cb, nullptr);
+    bound = true;
+}
 
 static int power_pct_to_spindle(int pct)
 {
@@ -124,7 +275,9 @@ static void exec_parsed_commands(const std::vector<GCodeCommand> &commands)
 {
     ui_cnc_motion_facade_init();
 
-    for (const auto &cmd : commands) {
+    const size_t total = commands.size();
+    for (size_t i = 0; i < total; ++i) {
+        const auto &cmd = commands[i];
         switch (cmd.type) {
         case GCodeCommand::G0: {
             float tx = cmd.x;
@@ -157,6 +310,7 @@ static void exec_parsed_commands(const std::vector<GCodeCommand> &commands)
         default:
             break;
         }
+        ui_cnc_print_service_notify_job_progress(i + 1, total);
     }
 }
 
@@ -168,6 +322,7 @@ static void execute_gcode_blocking(const char *gcode_text)
 
     const auto commands = GCodeParser::Parse(std::string(gcode_text));
     ESP_LOGI(TAG, "Execute %d parsed commands", static_cast<int>(commands.size()));
+    begin_tracked_job(commands, true);
     exec_parsed_commands(commands);
 }
 
@@ -235,21 +390,54 @@ static void cnc_worker_task(void *arg)
             break;
         case CNC_WORK_JOG:
             ui_cnc_motion_facade_init();
+            s_work_state = UI_CNC_WORK_JOGGING;
+            s_is_print_job = false;
+            s_job_start_us = esp_timer_get_time();
+            s_job_total_cmds = 1;
+            s_job_done_cmds = 0;
+            s_progress_pct = 0;
+            s_has_eta = false;
             move_linear_mm(msg.x, msg.y, UI_CNC_RAPID_FEED_MM_MIN, true);
+            s_job_done_cmds = 1;
+            s_progress_pct = 100;
+            refresh_elapsed_locked();
             break;
         case CNC_WORK_HOME:
             ui_cnc_motion_facade_init();
+            s_work_state = UI_CNC_WORK_JOGGING;
+            s_is_print_job = false;
+            s_job_start_us = esp_timer_get_time();
+            s_job_total_cmds = 1;
+            s_job_done_cmds = 0;
+            s_progress_pct = 0;
+            s_has_eta = false;
             move_linear_mm(0.0f, 0.0f, UI_CNC_RAPID_FEED_MM_MIN, true);
+            s_job_done_cmds = 1;
+            s_progress_pct = 100;
+            refresh_elapsed_locked();
             break;
         case CNC_WORK_LASER_OFF:
-            execute_gcode_blocking("M5");
+            ui_cnc_motion_facade_init();
+            s_paused = true;
+            s_work_state = UI_CNC_WORK_PAUSED;
+            set_laser_spindle(0);
             Stepper::GoIdle();
+            refresh_elapsed_locked();
             ESP_LOGI(TAG, "pause: laser off");
             break;
         default:
             break;
         }
         s_busy = false;
+        if (msg.id == CNC_WORK_GCODE) {
+            s_work_state = UI_CNC_WORK_IDLE;
+            s_progress_pct = 100;
+            refresh_elapsed_locked();
+            s_has_eta = true;
+            s_eta_sec = 0;
+        } else if (msg.id == CNC_WORK_JOG || msg.id == CNC_WORK_HOME) {
+            reset_job_status();
+        }
     }
 }
 
@@ -261,6 +449,52 @@ void ui_cnc_print_service_execute_gcode(const char *gcode_text)
 bool ui_cnc_print_service_is_busy(void)
 {
     return s_busy;
+}
+
+void ui_cnc_print_service_get_status(ui_cnc_print_status_t *out)
+{
+    if (out == nullptr) {
+        return;
+    }
+
+    if (s_busy || s_work_state != UI_CNC_WORK_IDLE) {
+        refresh_progress_locked();
+    }
+
+    out->state = s_work_state;
+    out->progress_pct = s_progress_pct;
+    out->elapsed_sec = s_elapsed_sec;
+    out->eta_sec = s_eta_sec;
+    out->has_eta = s_has_eta;
+    out->is_print_job = s_is_print_job;
+}
+
+void ui_cnc_print_service_notify_job_begin(const char *gcode_text)
+{
+    if (gcode_text == nullptr || gcode_text[0] == '\0') {
+        return;
+    }
+
+    s_busy = true;
+    const auto commands = GCodeParser::Parse(std::string(gcode_text));
+    begin_tracked_job(commands, true);
+}
+
+void ui_cnc_print_service_notify_job_progress(size_t done, size_t total)
+{
+    s_job_total_cmds = static_cast<int>(total);
+    s_job_done_cmds = static_cast<int>(done);
+    refresh_progress_locked();
+}
+
+void ui_cnc_print_service_notify_job_end(void)
+{
+    s_busy = false;
+    s_work_state = UI_CNC_WORK_IDLE;
+    s_progress_pct = 100;
+    refresh_elapsed_locked();
+    s_has_eta = true;
+    s_eta_sec = 0;
 }
 
 void ui_cnc_print_service_move_to_mm_async(float x_mm, float y_mm)
@@ -338,6 +572,8 @@ void ui_cnc_print_service_on_event(laser_ui_event_id_t id)
         const laser_ui_settings_t s = laser_ui_state_get_settings();
         const int spindle = power_pct_to_spindle(s.laser_power_pct);
         s_feed_mm_min = static_cast<float>(speed_pct_to_feed_mm_min(s.speed_pct));
+        s_paused = false;
+        s_work_state = UI_CNC_WORK_RUNNING;
         char gcode[64];
         snprintf(gcode, sizeof(gcode), "M3 S%d\nG1 F%d", spindle, static_cast<int>(s_feed_mm_min));
         post_gcode_async(gcode);
@@ -371,6 +607,9 @@ void ui_cnc_print_service_init(void)
     if (s_work_queue != nullptr) {
         return;
     }
+
+    bind_motion_progress_callback();
+    reset_job_status();
 
     s_work_queue = xQueueCreate(UI_CNC_WORK_QUEUE_LEN, sizeof(cnc_work_msg_t));
     if (s_work_queue == nullptr) {

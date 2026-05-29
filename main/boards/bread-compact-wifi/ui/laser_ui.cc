@@ -3,6 +3,7 @@
 #include "laser_ui_events.h"
 #include "laser_ui_log.h"
 #include "cnc/ui_cnc_print_service.h"
+#include "cnc/ui_cnc_print_status_service.h"
 #include "pages/page_xiaozhi.h"
 #include "pick/ui_pick_service.h"
 
@@ -39,6 +40,7 @@ void laser_ui_init(Display *display)
 
     laser_ui_events_init();
     ui_cnc_print_service_init();
+    ui_cnc_print_status_service_init();
     ui_pick_service_init();
     laser_ui_log_init();
     laser_ui_log_set_refresh_cb(log_refresh_cb);

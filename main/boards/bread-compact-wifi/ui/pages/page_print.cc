@@ -3,7 +3,16 @@
 #include "../laser_ui_widgets.h"
 #include "../laser_ui_events.h"
 #include "../assets/laser_ui_images.h"
+#include "../cnc/ui_cnc_print_status_service.h"
 #include "../../laser_ui_state.h"
+
+static lv_obj_t *g_status_badge = nullptr;
+static lv_obj_t *g_status_elapsed = nullptr;
+static lv_obj_t *g_status_eta = nullptr;
+static lv_obj_t *g_status_bar = nullptr;
+static lv_obj_t *g_status_pct = nullptr;
+static lv_obj_t *g_pos_x_label = nullptr;
+static lv_obj_t *g_pos_y_label = nullptr;
 
 /** Source asset size (btn_pad_top.c, pre-scaled at convert time). */
 #define JOG_PAD_W       148
@@ -29,6 +38,7 @@
 
 #define STATUS_BAR_H    10
 #define STATUS_PCT_W    40
+#define STATUS_ELAPSED_W 108
 
 /** Jog row height matches pad asset height. */
 #define JOG_ROW_H       JOG_PAD_H
@@ -277,17 +287,19 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_flex_align(row_meta, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
     lv_obj_t *badge = lv_label_create(row_meta);
-    lv_label_set_text(badge, " IDLE ");
+    lv_label_set_text(badge, " 空闲 ");
     lv_obj_set_style_bg_color(badge, UI_COLOR_STATUS_IDLE_BG, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(badge, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_text_color(badge, UI_COLOR_STATUS_IDLE_FG, LV_PART_MAIN);
     lv_obj_set_style_pad_hor(badge, 6, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(badge, 1, LV_PART_MAIN);
     lv_obj_set_style_radius(badge, 4, LV_PART_MAIN);
+    g_status_badge = badge;
 
     lv_obj_t *eta = lv_label_create(row_meta);
-    lv_label_set_text(eta, "剩余 00:00:00");
+    lv_label_set_text(eta, "剩余 --:--");
     style_status_label(eta, UI_COLOR_STATUS_META);
+    g_status_eta = eta;
 
     lv_obj_t *row_prog = lv_obj_create(status);
     style_transparent_row(row_prog);
@@ -295,6 +307,12 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_flex_align(row_prog, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(row_prog, 6, LV_PART_MAIN);
     lv_obj_set_style_margin_top(row_prog, -1, LV_PART_MAIN);
+
+    lv_obj_t *elapsed = lv_label_create(row_prog);
+    lv_label_set_text(elapsed, "用时 00:00");
+    lv_obj_set_width(elapsed, STATUS_ELAPSED_W);
+    style_status_label(elapsed, UI_COLOR_STATUS_META);
+    g_status_elapsed = elapsed;
 
     lv_obj_t *bar = lv_bar_create(row_prog);
     lv_obj_set_flex_grow(bar, 1);
@@ -306,6 +324,7 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_style_bg_color(bar, UI_COLOR_STATUS_VALUE, LV_PART_INDICATOR);
     lv_obj_set_style_radius(bar, 3, LV_PART_MAIN);
     lv_obj_set_style_radius(bar, 3, LV_PART_INDICATOR);
+    g_status_bar = bar;
 
     lv_obj_t *pct = lv_label_create(row_prog);
     lv_label_set_text(pct, "0%");
@@ -314,10 +333,11 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_style_text_align(pct, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
     lv_obj_set_style_pad_ver(pct, 0, LV_PART_MAIN);
     style_status_label(pct, UI_COLOR_STATUS_VALUE);
+    g_status_pct = pct;
 
     lv_obj_t *step_lbl = nullptr;
     lv_obj_t *step_slider = nullptr;
-    create_jog_row(page, nullptr, nullptr, &step_lbl, &step_slider);
+    create_jog_row(page, &g_pos_x_label, &g_pos_y_label, &step_lbl, &step_slider);
     laser_ui_state_bind_print(step_lbl, step_slider);
 
     lv_obj_t *ctrl = lv_obj_create(page);
@@ -340,4 +360,16 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PAUSE)));
 
     return page;
+}
+
+void page_print_on_show(void)
+{
+    ui_cnc_print_status_service_on_page_show(g_status_badge, g_status_elapsed, g_status_eta,
+                                             g_status_bar, g_status_pct, g_pos_x_label,
+                                             g_pos_y_label);
+}
+
+void page_print_on_hide(void)
+{
+    ui_cnc_print_status_service_on_page_hide();
 }

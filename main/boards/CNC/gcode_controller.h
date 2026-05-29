@@ -6,6 +6,12 @@
 #include "font_data.h"
 #include "motion_controller.h"
 
+#if CONFIG_MSP3525_LASER_UI
+extern "C" {
+#include "ui/cnc/ui_cnc_print_service.h"
+}
+#endif
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <esp_log.h>
@@ -290,7 +296,13 @@ public:
                     try {
                         MotionController::GlobalInit(106.666f, 106.666f, 700.0f, 800.0f, 0.02f, 42.0f);
                         vTaskDelay(pdMS_TO_TICKS(100));  // 等待步进驱动稳定，避免首次移动丢步
+#if CONFIG_MSP3525_LASER_UI
+                        ui_cnc_print_service_notify_job_begin(ctx->gcode.c_str());
+#endif
                         MotionController::Get().Execute(ctx->gcode);
+#if CONFIG_MSP3525_LASER_UI
+                        ui_cnc_print_service_notify_job_end();
+#endif
                         Stepper::GoIdle();
                         ESP_LOGI("KanjiVG", "Motion done, %d lines", ctx->line_count);
 
@@ -298,6 +310,9 @@ public:
                         // 勿改为 protocol_->SendListenDetect 或在 xTask 内直接发 JSON。
                         Application::GetInstance().SendListenDetect("雕刻已完成：" + ctx->text);
                     } catch (const std::exception& e) {
+#if CONFIG_MSP3525_LASER_UI
+                        ui_cnc_print_service_notify_job_end();
+#endif
                         ESP_LOGE("KanjiVG", "Engrave failed: %s", e.what());
                         Application::GetInstance().SendListenDetect("雕刻失败：" + std::string(e.what()));
                     }
