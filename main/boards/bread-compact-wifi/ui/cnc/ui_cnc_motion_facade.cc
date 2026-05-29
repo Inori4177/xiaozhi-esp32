@@ -7,8 +7,6 @@
 #include "stepper.h"
 #include "stepping_engine.h"
 
-#include <sdkconfig.h>
-
 #include <cmath>
 #include <cstring>
 #include <esp_log.h>
@@ -22,38 +20,17 @@ static float s_logical_y = 0.0f;
 static bool s_facade_ready = false;
 static volatile bool s_moving = false;
 
-/* boards/CNC/stepping_engine.h defaults (13/12/10/11/9/17) collide with
- * bread-compact-wifi LCD SPI, touch INT/RST, and laser UART — never call
- * SteppingEngine::Init() on this board until pins are remapped in hardware. */
-#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
-static constexpr bool kSkipStepperGpio = true;
-#else
-static constexpr bool kSkipStepperGpio = false;
-#endif
-
 static void ensure_motion_init(void)
 {
     if (s_facade_ready) {
         return;
     }
-    if (kSkipStepperGpio) {
-        Planner::Init(UI_CNC_STEPS_PER_MM_X,
-                      UI_CNC_STEPS_PER_MM_Y,
-                      UI_CNC_MAX_RATE_MM_MIN,
-                      UI_CNC_ACCELERATION,
-                      UI_CNC_JUNCTION_DEV,
-                      UI_CNC_MAX_TRAVEL_MM);
-        ESP_LOGW(TAG,
-                 "Stepper GPIO init skipped on bread-compact-wifi (pins conflict with "
-                 "LCD/touch). Pick page uses logical coords only.");
-    } else {
-        MotionController::GlobalInit(UI_CNC_STEPS_PER_MM_X,
-                                     UI_CNC_STEPS_PER_MM_Y,
-                                     UI_CNC_MAX_RATE_MM_MIN,
-                                     UI_CNC_ACCELERATION,
-                                     UI_CNC_JUNCTION_DEV,
-                                     UI_CNC_MAX_TRAVEL_MM);
-    }
+    MotionController::GlobalInit(UI_CNC_STEPS_PER_MM_X,
+                                 UI_CNC_STEPS_PER_MM_Y,
+                                 UI_CNC_MAX_RATE_MM_MIN,
+                                 UI_CNC_ACCELERATION,
+                                 UI_CNC_JUNCTION_DEV,
+                                 UI_CNC_MAX_TRAVEL_MM);
     s_logical_x = 0.0f;
     s_logical_y = 0.0f;
     s_facade_ready = true;
@@ -67,12 +44,6 @@ static bool move_linear_mm(float target_x, float target_y, float feed_mm_min)
         target_x > UI_CNC_WORK_SIZE_MM || target_y > UI_CNC_WORK_SIZE_MM) {
         ESP_LOGW(TAG, "Target (%.2f, %.2f) out of work area", target_x, target_y);
         return false;
-    }
-
-    if (kSkipStepperGpio) {
-        s_logical_x = target_x;
-        s_logical_y = target_y;
-        return true;
     }
 
     const float dx = target_x - s_logical_x;
@@ -158,7 +129,8 @@ static void move_task(void *arg)
 void ui_cnc_motion_facade_rapid_to_mm_async(float x_mm, float y_mm)
 {
     auto *ctx = new MoveTaskCtx{x_mm, y_mm};
-    if (xTaskCreate(move_task, "ui_pick_move", UI_CNC_MOVE_TASK_STACK, ctx, UI_CNC_MOVE_TASK_PRIO, nullptr) != pdPASS) {
+    if (xTaskCreatePinnedToCore(move_task, "ui_pick_move", UI_CNC_MOVE_TASK_STACK, ctx,
+                                UI_CNC_MOVE_TASK_PRIO, nullptr, UI_CNC_TASK_CORE) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create move task");
         delete ctx;
     }

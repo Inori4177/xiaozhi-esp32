@@ -28,14 +28,15 @@
 #if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
 #define LCD_SPI_DRAW_BUF_LINES  MSP3525_LVGL_DRAW_BUF_LINES
 #if CONFIG_MSP3525_LASER_UI
-/* 乐鑫 esp_lvgl_port：PSRAM 画板 + SRAM trans_size，单缓冲省 ~50% 条带显存 */
+/* internal DMA 条带：启动后堆紧张时，PSRAM 画板 + 每帧 priv TX 拷贝易失败 */
 #define LCD_SPI_USE_DOUBLE_BUF  0
-#define LCD_SPI_USE_PSRAM_CANVAS  1
+#define LCD_SPI_USE_PSRAM_CANVAS  0
+#define LCD_SPI_BUF_IN_PSRAM    0
 #else
 #define LCD_SPI_USE_DOUBLE_BUF  1
 #define LCD_SPI_USE_PSRAM_CANVAS  0
-#endif
 #define LCD_SPI_BUF_IN_PSRAM    1
+#endif
 #else
 #define LCD_SPI_DRAW_BUF_LINES  20
 #define LCD_SPI_USE_DOUBLE_BUF  0
@@ -160,7 +161,11 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     port_cfg.timer_period_ms = 5;
     port_cfg.task_max_sleep_ms = 50;
 #if CONFIG_MSP3525_LASER_UI
+#ifdef MSP3525_LVGL_TASK_STACK
+    port_cfg.task_stack = MSP3525_LVGL_TASK_STACK;
+#else
     port_cfg.task_stack = 8 * 1024;
+#endif
 #endif
 #else
     port_cfg.task_priority = 1;
@@ -200,7 +205,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         },
         .color_format = LV_COLOR_FORMAT_RGB565,
         .flags = {
-            .buff_dma = LCD_SPI_USE_PSRAM_CANVAS ? 0 : 1,
+            .buff_dma = 1,
             .buff_spiram = LCD_SPI_BUF_IN_PSRAM,
             .sw_rotate = 0,
             .swap_bytes = 1,

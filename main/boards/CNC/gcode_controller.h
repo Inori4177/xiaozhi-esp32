@@ -285,7 +285,7 @@ public:
                 };
                 auto* ctx = new Ctx{std::move(gcode), std::move(text), line_count};
 
-                xTaskCreate([](void* arg) {
+                xTaskCreatePinnedToCore([](void* arg) {
                     auto* ctx = static_cast<Ctx*>(arg);
                     try {
                         MotionController::GlobalInit(106.666f, 106.666f, 700.0f, 800.0f, 0.02f, 42.0f);
@@ -303,7 +303,7 @@ public:
                     }
                     delete ctx;
                     vTaskDelete(nullptr);
-                }, "engrave", 8192, ctx, 5, nullptr);
+                }, "engrave", 8192, ctx, 5, nullptr, 0);
 
                 ESP_LOGI("KanjiVG", "Engrave task started, %d lines", line_count);
 

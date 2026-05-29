@@ -25,6 +25,13 @@ static float g_pick_origin_x = 0.0f;
 static float g_pick_origin_y = 0.0f;
 static bool g_pick_origin_valid = false;
 
+static laser_ui_settings_t g_cached_settings = {
+    .material_index = 0,
+    .laser_power_pct = 50,
+    .speed_pct = 100,
+};
+static float g_cached_jog_step_mm = 1.0f;
+
 static int clamp_index(int idx, int max_index)
 {
     if (idx < 0) {
@@ -53,6 +60,31 @@ static int clamp_step_index(int idx)
     return clamp_index(idx, k_step_count - 1);
 }
 
+static void refresh_settings_cache(void)
+{
+    if (g_material_dd != nullptr) {
+        g_cached_settings.material_index = static_cast<int>(lv_dropdown_get_selected(g_material_dd));
+    }
+    if (g_power_slider != nullptr) {
+        const int idx = snap_slider_index(g_power_slider, k_power_index_max);
+        g_cached_settings.laser_power_pct = idx * 10;
+    }
+    if (g_speed_slider != nullptr) {
+        const int idx = snap_slider_index(g_speed_slider, k_speed_index_max);
+        g_cached_settings.speed_pct = k_speed_pct[idx];
+    }
+}
+
+static void refresh_jog_step_cache(void)
+{
+    if (g_step_slider == nullptr) {
+        g_cached_jog_step_mm = 1.0f;
+        return;
+    }
+    const int idx = clamp_step_index(static_cast<int>(lv_slider_get_value(g_step_slider)));
+    g_cached_jog_step_mm = k_step_mm[idx];
+}
+
 static void update_step_label(void)
 {
     if (g_step_label == nullptr || g_step_slider == nullptr) {
@@ -62,6 +94,7 @@ static void update_step_label(void)
     char buf[24];
     snprintf(buf, sizeof(buf), "%dmm", static_cast<int>(k_step_mm[idx]));
     lv_label_set_text(g_step_label, buf);
+    refresh_jog_step_cache();
 }
 
 static void update_power_label(void)
@@ -73,6 +106,7 @@ static void update_power_label(void)
     char buf[12];
     snprintf(buf, sizeof(buf), "%d%%", idx * 10);
     lv_label_set_text(g_power_label, buf);
+    refresh_settings_cache();
 }
 
 static void update_speed_label(void)
@@ -84,6 +118,7 @@ static void update_speed_label(void)
     char buf[12];
     snprintf(buf, sizeof(buf), "%d%%", k_speed_pct[idx]);
     lv_label_set_text(g_speed_label, buf);
+    refresh_settings_cache();
 }
 
 void laser_ui_state_init(void)
@@ -102,6 +137,7 @@ void laser_ui_state_bind_print(lv_obj_t *step_label, lv_obj_t *step_slider)
     g_step_label = step_label;
     g_step_slider = step_slider;
     update_step_label();
+    refresh_jog_step_cache();
 }
 
 void laser_ui_state_bind_settings(lv_obj_t *material_dd, lv_obj_t *power_slider,
@@ -115,6 +151,7 @@ void laser_ui_state_bind_settings(lv_obj_t *material_dd, lv_obj_t *power_slider,
     g_speed_label = speed_label;
     update_power_label();
     update_speed_label();
+    refresh_settings_cache();
 }
 
 void laser_ui_state_on_step_slider(lv_event_t *e)
@@ -142,36 +179,17 @@ void laser_ui_state_on_speed_slider(lv_event_t *e)
 void laser_ui_state_on_material_changed(lv_event_t *e)
 {
     (void)e;
+    refresh_settings_cache();
 }
 
 float laser_ui_state_get_jog_step_mm(void)
 {
-    if (g_step_slider == nullptr) {
-        return 1.0f;
-    }
-    int idx = clamp_step_index(static_cast<int>(lv_slider_get_value(g_step_slider)));
-    return k_step_mm[idx];
+    return g_cached_jog_step_mm;
 }
 
 laser_ui_settings_t laser_ui_state_get_settings(void)
 {
-    laser_ui_settings_t s = {
-        .material_index = 0,
-        .laser_power_pct = 50,
-        .speed_pct = 100,
-    };
-    if (g_material_dd != nullptr) {
-        s.material_index = static_cast<int>(lv_dropdown_get_selected(g_material_dd));
-    }
-    if (g_power_slider != nullptr) {
-        int idx = snap_slider_index(g_power_slider, k_power_index_max);
-        s.laser_power_pct = idx * 10;
-    }
-    if (g_speed_slider != nullptr) {
-        int idx = snap_slider_index(g_speed_slider, k_speed_index_max);
-        s.speed_pct = k_speed_pct[idx];
-    }
-    return s;
+    return g_cached_settings;
 }
 
 void laser_ui_state_set_pick_origin(float x_mm, float y_mm)

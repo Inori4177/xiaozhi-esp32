@@ -1,7 +1,6 @@
 #include "laser_ui_splash.h"
 #include "laser_ui_layout.h"
 #include "laser_ui.h"
-#include "splash_bg_gif.h"
 
 #include "display.h"
 #include "boards/common/board_custom_ui.h"
@@ -212,7 +211,6 @@ static void splash_fade_ready_cb(lv_anim_t *anim)
         lv_timer_delete(g_splash.title_timer);
         g_splash.title_timer = nullptr;
     }
-    splash_bg_gif_stop();
     g_splash.active = false;
     g_splash.finishing = false;
 
@@ -247,8 +245,6 @@ void laser_ui_splash_start(Display *display)
     lv_obj_set_style_pad_all(g_splash.overlay, 0, LV_PART_MAIN);
     lv_obj_clear_flag(g_splash.overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_move_foreground(g_splash.overlay);
-
-    splash_bg_gif_start(g_splash.overlay);
 
     g_splash.title_buf[0] = '\0';
     g_splash.title_glyph_index = 0;
@@ -356,8 +352,6 @@ void laser_ui_splash_finish(Display *display)
 
     g_splash.finishing = true;
     DisplayLockGuard lock(display);
-
-    splash_bg_gif_stop();
 
     if (g_splash.title_timer != nullptr) {
         lv_timer_pause(g_splash.title_timer);
