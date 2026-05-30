@@ -3,6 +3,8 @@
 #include "../laser_ui_layout.h"
 #include "ui_cnc_motion_facade.h"
 #include "ui_cnc_print_service.h"
+#include "ui_cnc_print_status_layout.h"
+#include "ui_cnc_print_status_font.h"
 
 #include <cstdio>
 #include <cstring>
@@ -23,6 +25,56 @@ static uint32_t g_last_elapsed = 0xFFFFFFFF;
 static uint32_t g_last_eta = 0xFFFFFFFF;
 static bool g_last_has_eta = false;
 
+/** 运行结束换状态时 lv_label 可能触发布局重算，强制拉回固定坐标/高度。 */
+static void lock_status_layout(void)
+{
+    if (g_badge != nullptr) {
+        lv_obj_set_width(g_badge, LV_SIZE_CONTENT);
+        lv_obj_set_height(g_badge, LV_SIZE_CONTENT);
+        ui_cnc_print_status_apply_font(g_badge);
+    }
+
+    if (g_eta != nullptr) {
+        lv_obj_set_width(g_eta, UI_PRINT_STATUS_ELAPSED_W);
+        lv_obj_set_height(g_eta, UI_PRINT_STATUS_ROW_META_H);
+        ui_cnc_print_status_apply_font(g_eta);
+        lv_obj_t *row_meta = lv_obj_get_parent(g_eta);
+        if (row_meta != nullptr) {
+            lv_obj_set_height(row_meta, UI_PRINT_STATUS_ROW_META_H);
+            lv_obj_set_style_min_height(row_meta, UI_PRINT_STATUS_ROW_META_H, LV_PART_MAIN);
+            lv_obj_set_style_max_height(row_meta, UI_PRINT_STATUS_ROW_META_H, LV_PART_MAIN);
+            lv_obj_align(row_meta, LV_ALIGN_TOP_MID, 0, 0);
+        }
+    }
+
+    if (g_elapsed != nullptr) {
+        lv_obj_set_width(g_elapsed, UI_PRINT_STATUS_ELAPSED_W);
+        lv_obj_set_height(g_elapsed, UI_PRINT_STATUS_ROW_PROG_H);
+        ui_cnc_print_status_apply_font(g_elapsed);
+
+        lv_obj_t *row_prog = lv_obj_get_parent(g_elapsed);
+        if (row_prog != nullptr) {
+            lv_obj_set_height(row_prog, UI_PRINT_STATUS_ROW_PROG_H);
+            lv_obj_set_style_min_height(row_prog, UI_PRINT_STATUS_ROW_PROG_H, LV_PART_MAIN);
+            lv_obj_set_style_max_height(row_prog, UI_PRINT_STATUS_ROW_PROG_H, LV_PART_MAIN);
+            lv_obj_align(row_prog, LV_ALIGN_TOP_MID, 0,
+                         UI_PRINT_STATUS_ROW_META_H + UI_PRINT_STATUS_ROW_GAP);
+        }
+    }
+
+    if (g_bar != nullptr) {
+        lv_obj_set_height(g_bar, UI_PRINT_STATUS_BAR_H);
+        lv_obj_set_style_min_height(g_bar, UI_PRINT_STATUS_BAR_H, LV_PART_MAIN);
+        lv_obj_set_style_max_height(g_bar, UI_PRINT_STATUS_BAR_H, LV_PART_MAIN);
+    }
+
+    if (g_pct != nullptr) {
+        lv_obj_set_width(g_pct, UI_PRINT_STATUS_PCT_W);
+        lv_obj_set_height(g_pct, UI_PRINT_STATUS_ROW_PROG_H);
+        ui_cnc_print_status_apply_font(g_pct);
+    }
+}
+
 static void format_mmss(uint32_t sec, char *buf, size_t len)
 {
     const uint32_t m = sec / 60;
@@ -42,27 +94,28 @@ static void apply_badge(ui_cnc_work_state_t state)
     g_last_state = state;
     switch (state) {
     case UI_CNC_WORK_RUNNING:
-        lv_label_set_text(g_badge, " 运行 ");
+        lv_label_set_text(g_badge, "运行");
         lv_obj_set_style_bg_color(g_badge, UI_COLOR_RUN, LV_PART_MAIN);
         lv_obj_set_style_text_color(g_badge, lv_color_white(), LV_PART_MAIN);
         break;
     case UI_CNC_WORK_JOGGING:
-        lv_label_set_text(g_badge, " 点动 ");
+        lv_label_set_text(g_badge, "点动");
         lv_obj_set_style_bg_color(g_badge, UI_COLOR_ACCENT, LV_PART_MAIN);
         lv_obj_set_style_text_color(g_badge, lv_color_white(), LV_PART_MAIN);
         break;
     case UI_CNC_WORK_PAUSED:
-        lv_label_set_text(g_badge, " 暂停 ");
+        lv_label_set_text(g_badge, "暂停");
         lv_obj_set_style_bg_color(g_badge, UI_COLOR_PAUSE, LV_PART_MAIN);
         lv_obj_set_style_text_color(g_badge, lv_color_white(), LV_PART_MAIN);
         break;
     case UI_CNC_WORK_IDLE:
     default:
-        lv_label_set_text(g_badge, " 空闲 ");
+        lv_label_set_text(g_badge, "空闲");
         lv_obj_set_style_bg_color(g_badge, UI_COLOR_STATUS_IDLE_BG, LV_PART_MAIN);
         lv_obj_set_style_text_color(g_badge, UI_COLOR_STATUS_IDLE_FG, LV_PART_MAIN);
         break;
     }
+    lock_status_layout();
 }
 
 static void refresh_status_widgets(void)
@@ -123,6 +176,8 @@ static void refresh_status_widgets(void)
             lv_label_set_text(g_pos_y, buf);
         }
     }
+
+    lock_status_layout();
 }
 
 static void refresh_timer_cb(lv_timer_t *timer)

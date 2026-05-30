@@ -1,11 +1,11 @@
 # ESP-IDF Partition Table — 16MB flash, laser UI + CNC (bread-compact-wifi / MSP3525)
 #
 # 默认 v2/16m.csv 的 ota 仅 0x3f0000(≈3.94MB)，含 LVGL 激光 UI + KanjiVG/CNC 后固件约 0x460000+。
-# 本表将 ota_0/ota_1 扩至 0x480000(4.5MB)，assets 相应缩小为 0x6E0000(≈6.88MB)。
+# 本表将 ota_0/ota_1 扩至 0x4A0000(≈4.59MB)，assets 相应缩小为 0x6A0000(≈6.63MB)。
 # Name,   Type, SubType, Offset,  Size, Flags
 nvs,      data, nvs,     0x9000,    0x4000,
 otadata,  data, ota,     0xd000,    0x2000,
 phy_init, data, phy,     0xf000,    0x1000,
-ota_0,    app,  ota_0,   0x20000,   0x480000,
-ota_1,    app,  ota_1,   ,          0x480000,
-assets,   data, spiffs,  0x920000,  0x6E0000
+ota_0,    app,  ota_0,   0x20000,   0x4A0000,
+ota_1,    app,  ota_1,   ,          0x4A0000,
+assets,   data, spiffs,  0x960000,  0x6A0000
