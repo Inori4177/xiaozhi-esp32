@@ -131,36 +131,11 @@ public:
         }
     }
 
-    /** Stop timer/motors without changing laser PWM (M3/M5/pause own laser state). */
     static void GoIdle() {
         SteppingEngine::StopTimer();
         SteppingEngine::DisableMotors();
+        SteppingEngine::LaserOff();
         st.active = false;
-        _current_block = nullptr;
-    }
-
-    /** Halt mid-block (pause); does not turn laser off. */
-    static void AbortMotion() {
-        SteppingEngine::StopTimer();
-        SteppingEngine::DisableMotors();
-        st.active = false;
-        _current_block = nullptr;
-    }
-
-    /** Fraction of current block completed (0..1); 1 if idle. */
-    static float GetBlockProgress() {
-        if (!st.active) {
-            return 1.0f;
-        }
-        const uint32_t total = st.step_event_count + 1;
-        if (total == 0) {
-            return 0.0f;
-        }
-        const uint32_t remaining = st.step_count;
-        if (remaining >= total) {
-            return 0.0f;
-        }
-        return static_cast<float>(total - remaining) / static_cast<float>(total);
     }
 
     static float GetCurrentSpeed() {

@@ -10,17 +10,12 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-using CommandProgressFn = void (*)(size_t done, size_t total, void *user_data);
-
 class MotionController {
 private:
     float current_x;
     float current_y;
     int   laser_power;
     bool  initialized;
-
-    static CommandProgressFn progress_cb_;
-    static void *progress_user_;
 
 public:
     MotionController() : current_x(0.0f), current_y(0.0f), laser_power(0), initialized(false) {}
@@ -43,11 +38,6 @@ public:
         mc.laser_power = 0;
         mc.initialized = true;
         ESP_LOGI("MotionController", "Initialized. Origin at (0,0)");
-    }
-
-    static void SetCommandProgressCallback(CommandProgressFn fn, void *user_data) {
-        progress_cb_ = fn;
-        progress_user_ = user_data;
     }
 
     void Execute(const std::string& gcode) {
@@ -145,10 +135,6 @@ public:
                 default:
                     break;
             }
-
-            if (progress_cb_ != nullptr) {
-                progress_cb_(i + 1, commands.size(), progress_user_);
-            }
         }
 
         // 第二步：回到原点（直接构造 block，不走 Planner）
@@ -183,8 +169,5 @@ public:
         ESP_LOGI("MotionController", "Done. Position: (0, 0)");
     }
 };
-
-inline CommandProgressFn MotionController::progress_cb_ = nullptr;
-inline void *MotionController::progress_user_ = nullptr;
 
 #endif // __MOTION_CONTROLLER_H__
