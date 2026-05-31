@@ -65,9 +65,13 @@ static void refresh_head_dot_async(void *user_data)
         return;
     }
 
+    if (lv_obj_get_width(g_map_frame) > 0 && lv_obj_get_height(g_map_frame) > 0) {
+        ui_pick_service_update_viewport_from_map_frame();
+    }
+
     float hx = 0.0f;
     float hy = 0.0f;
-    ui_cnc_motion_facade_get_position_mm(&hx, &hy);
+    ui_cnc_motion_facade_get_display_position_mm(&hx, &hy);
 
     int px = 0;
     int py = 0;
@@ -88,10 +92,12 @@ static void refresh_head_dot_async(void *user_data)
 static void pos_timer_cb(void *arg)
 {
     (void)arg;
-    if (ui_cnc_print_service_is_busy()) {
+    if (g_head_dot == nullptr) {
         return;
     }
-    lv_async_call(refresh_head_dot_async, nullptr);
+    if (lv_async_call(refresh_head_dot_async, nullptr) != LV_RESULT_OK) {
+        ESP_LOGW(TAG, "head dot refresh async failed");
+    }
 }
 
 static void start_pos_timer(void)
@@ -159,12 +165,34 @@ static bool commit_stable_cursor(bool snap_on_release)
     return true;
 }
 
+static bool pick_action_debounced(int64_t *last_us, int64_t min_interval_us)
+{
+    const int64_t now = esp_timer_get_time();
+    if (last_us != nullptr && now - *last_us < min_interval_us) {
+        return true;
+    }
+    if (last_us != nullptr) {
+        *last_us = now;
+    }
+    return false;
+}
+
 static void on_pick_event(laser_ui_event_id_t id, void *user_data)
 {
     (void)user_data;
+    static int64_t s_last_confirm_us = 0;
+    static int64_t s_last_reset_us = 0;
 
     switch (id) {
     case LASER_EVT_PICK_CONFIRM: {
+        if (pick_action_debounced(&s_last_confirm_us, 600000LL)) {
+            ESP_LOGD(TAG, "Pick confirm ignored (debounce)");
+            break;
+        }
+        if (ui_cnc_print_service_is_busy()) {
+            ESP_LOGW(TAG, "Pick confirm ignored (CNC busy)");
+            break;
+        }
         laser_ui_state_set_pick_origin(g_cursor_mm_x, g_cursor_mm_y);
         if (g_status_label != nullptr) {
             lv_label_set_text(g_status_label, "移动中…");
@@ -179,6 +207,14 @@ static void on_pick_event(laser_ui_event_id_t id, void *user_data)
         break;
     }
     case LASER_EVT_PICK_RESET:
+        if (pick_action_debounced(&s_last_reset_us, 800000LL)) {
+            ESP_LOGD(TAG, "Pick reset ignored (debounce)");
+            break;
+        }
+        if (ui_cnc_print_service_is_busy()) {
+            ESP_LOGW(TAG, "Pick reset ignored (CNC busy)");
+            break;
+        }
         g_cursor_mm_x = 0.0f;
         g_cursor_mm_y = 0.0f;
         laser_ui_state_clear_pick_origin();

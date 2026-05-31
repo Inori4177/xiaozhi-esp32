@@ -101,6 +101,28 @@ bool webui_cnc_is_busy(void)
     return ui_cnc_print_service_is_busy();
 }
 
+void webui_cnc_pause(void)
+{
+    ui_cnc_print_service_pause();
+    webui_log_append("pause\n");
+}
+
+void webui_cnc_run(void)
+{
+    ui_cnc_print_service_run();
+    webui_log_append("run\n");
+}
+
+void webui_cnc_apply_settings(void)
+{
+    ui_cnc_print_service_apply_settings();
+}
+
+bool webui_cnc_has_suspended_job(void)
+{
+    return ui_cnc_print_service_has_suspended_job();
+}
+
 #else
 
 bool webui_cnc_available(void) { return false; }
@@ -126,5 +148,9 @@ bool webui_cnc_run_file(const char *vfs_path)
 }
 void webui_cnc_get_position(float *x_mm, float *y_mm) { if (x_mm) *x_mm = 0; if (y_mm) *y_mm = 0; }
 bool webui_cnc_is_busy(void) { return false; }
+void webui_cnc_pause(void) {}
+void webui_cnc_run(void) {}
+void webui_cnc_apply_settings(void) {}
+bool webui_cnc_has_suspended_job(void) { return false; }
 
 #endif

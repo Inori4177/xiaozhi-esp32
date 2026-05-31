@@ -63,6 +63,21 @@ void ui_cnc_print_service_notify_job_end(void);
 /** 由 ui_evt 任务调用，勿在 LVGL 线程同步执行步进。 */
 void ui_cnc_print_service_on_event(laser_ui_event_id_t id);
 
+/** 暂停：关激光、中止步进，保留未执行的 G-code 以便继续。 */
+void ui_cnc_print_service_pause(void);
+
+/** 运行/继续：无挂起作业时按 UI 设置开激光；有挂起作业则继续剩余 G-code。 */
+void ui_cnc_print_service_run(void);
+
+/** 将 laser_ui_state 功率/速度下发到运动层 (M3 S + G1 F)。 */
+void ui_cnc_print_service_apply_settings(void);
+
+/** 是否有已暂停、可继续的 G-code 作业。 */
+bool ui_cnc_print_service_has_suspended_job(void);
+
+/** 步进层轮询：暂停请求已发出时中止当前运动段。 */
+bool ui_cnc_print_service_poll_pause_abort(void);
+
 #ifdef __cplusplus
 }
 #endif

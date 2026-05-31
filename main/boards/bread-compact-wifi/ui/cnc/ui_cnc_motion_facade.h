@@ -23,6 +23,9 @@ void ui_cnc_motion_facade_begin_segment_mm(float from_x, float from_y, float to_
 
 void ui_cnc_motion_facade_end_segment_mm(float x_mm, float y_mm);
 
+/** 中止当前运动段并同步逻辑坐标（暂停/AbortMotion 后供 UI 显示）。 */
+void ui_cnc_motion_facade_abort_segment_mm(void);
+
 /** Blocking rapid move in caller task; updates logical position. */
 bool ui_cnc_motion_facade_rapid_to_mm(float x_mm, float y_mm);
 

@@ -15,7 +15,7 @@
 
 static const char *TAG = "webui_cmd";
 
-static void emit_response(const char *text, char *resp, size_t resp_size)
+static void emit_response(const char *text, char *resp, size_t resp_size, bool broadcast_ws)
 {
     if (text == nullptr) {
         return;
@@ -25,13 +25,15 @@ static void emit_response(const char *text, char *resp, size_t resp_size)
         resp[resp_size - 1] = '\0';
     }
     webui_log_append(text);
-    webui_ws_broadcast(text);
+    if (broadcast_ws) {
+        webui_ws_broadcast(text);
+    }
 }
 
-static bool dispatch_user_command(const char *cmd, char *resp, size_t resp_size)
+static bool dispatch_user_command(const char *cmd, char *resp, size_t resp_size, bool broadcast_ws)
 {
     if (cmd == nullptr || cmd[0] == '\0') {
-        emit_response("ok\n", resp, resp_size);
+        emit_response("ok\n", resp, resp_size, broadcast_ws);
         return true;
     }
     char line[512] = {};
@@ -40,50 +42,54 @@ static bool dispatch_user_command(const char *cmd, char *resp, size_t resp_size)
                  "FW version:1.0# FW target:xiaozhi-cnc# FW HW:local# primary sd:%s# "
                  "authentication:no# webcommunication: Sync: %d:%s# hostname:xiaozhi-cnc# axis:2",
                  WEBUI_VFS_MOUNT, WEBUI_HTTP_PORT, "device");
-        emit_response(line, resp, resp_size);
+        emit_response(line, resp, resp_size, broadcast_ws);
         return true;
     }
     if (webui_wifi_handle_esp_command(cmd, line, sizeof(line))) {
-        emit_response(line, resp, resp_size);
+        emit_response(line, resp, resp_size, broadcast_ws);
         return true;
     }
     if (strncmp(cmd, "[ESP700]", 8) == 0) {
         const char *web_path = cmd + 8;
         if (!webui_vfs_is_mounted() && !webui_vfs_mount()) {
-            emit_response("error: LocalFS not mounted\n", resp, resp_size);
+            emit_response("error: LocalFS not mounted\n", resp, resp_size, broadcast_ws);
             return false;
         }
         char vfs_path[WEBUI_FILE_PATH_MAX];
         if (!webui_vfs_resolve_path(web_path, vfs_path, sizeof(vfs_path))) {
-            emit_response("error: bad path\n", resp, resp_size);
+            emit_response("error: bad path\n", resp, resp_size, broadcast_ws);
             return false;
         }
         if (!webui_cnc_run_file(vfs_path)) {
-            snprintf(line, sizeof(line), "error: cannot run %s (missing file or CNC busy)\n", web_path);
-            emit_response(line, resp, resp_size);
+            if (webui_cnc_is_busy() || webui_cnc_has_suspended_job()) {
+                snprintf(line, sizeof(line), "error: CNC busy (pause or wait before running %s)\n", web_path);
+            } else {
+                snprintf(line, sizeof(line), "error: cannot run %s (missing file or CNC busy)\n", web_path);
+            }
+            emit_response(line, resp, resp_size, broadcast_ws);
             return false;
         }
         snprintf(line, sizeof(line), "ok: running %s\n", web_path);
-        emit_response(line, resp, resp_size);
+        emit_response(line, resp, resp_size, broadcast_ws);
         return true;
     }
     if (cmd[0] == '$') {
         snprintf(line, sizeof(line), "ok %s\n", cmd);
-        emit_response(line, resp, resp_size);
+        emit_response(line, resp, resp_size, broadcast_ws);
         return true;
     }
     if (cmd[0] == '?') {
         float x = 0, y = 0;
         webui_cnc_get_position(&x, &y);
         snprintf(line, sizeof(line), "X:%.2f Y:%.2f\n", static_cast<double>(x), static_cast<double>(y));
-        emit_response(line, resp, resp_size);
+        emit_response(line, resp, resp_size, broadcast_ws);
         return true;
     }
     if (!webui_cnc_submit_line(cmd)) {
-        emit_response("error: CNC worker not ready (low memory)\n", resp, resp_size);
+        emit_response("error: CNC worker not ready (low memory)\n", resp, resp_size, broadcast_ws);
         return false;
     }
-    emit_response("ok\n", resp, resp_size);
+    emit_response("ok\n", resp, resp_size, broadcast_ws);
     return true;
 }
 
@@ -92,7 +98,15 @@ bool webui_command_dispatch(const char *cmd, char *resp, size_t resp_size)
     if (resp != nullptr && resp_size > 0) {
         resp[0] = '\0';
     }
-    return dispatch_user_command(cmd, resp, resp_size);
+    return dispatch_user_command(cmd, resp, resp_size, true);
+}
+
+bool webui_command_dispatch_ws(const char *cmd, char *resp, size_t resp_size)
+{
+    if (resp != nullptr && resp_size > 0) {
+        resp[0] = '\0';
+    }
+    return dispatch_user_command(cmd, resp, resp_size, false);
 }
 
 extern "C" void webui_command_dispatch_async(const char *cmd)

@@ -252,6 +252,52 @@ button.ctrl.primary {
 .cmd_row { display: flex; gap: 8px; margin-top: 10px; }
 #custom_cmd_txt { flex: 1; max-width: none; margin-top: 0; }
 
+.transport_row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.transport-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: var(--radius);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.transport-btn:active { transform: scale(0.98); }
+
+.transport-icon {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.run-btn {
+  background: linear-gradient(180deg, rgba(61, 214, 198, 0.22) 0%, rgba(61, 214, 198, 0.08) 100%);
+  border: 1px solid rgba(61, 214, 198, 0.45);
+  color: var(--cyan);
+}
+
+.run-btn:hover {
+  box-shadow: 0 0 0 1px rgba(61, 214, 198, 0.25);
+}
+
+.pause-btn {
+  background: linear-gradient(180deg, rgba(240, 113, 120, 0.18) 0%, rgba(240, 113, 120, 0.06) 100%);
+  border: 1px solid rgba(240, 113, 120, 0.4);
+  color: #ffb4b8;
+}
+
+.pause-btn:hover {
+  box-shadow: 0 0 0 1px rgba(240, 113, 120, 0.2);
+}
+
 .jog_grid {
   display: grid;
   grid-template-columns: repeat(3, 76px);
@@ -274,6 +320,10 @@ button.ctrl.primary {
 .jog-btn:active { transform: scale(0.96); background: #2d3a4a; }
 .jog-btn.home { color: var(--accent); border-color: var(--accent-dim); }
 
+details.acc.jog-pick {
+  margin-top: 16px;
+}
+
 .scroll-box {
   max-height: 160px;
   overflow: auto;
@@ -282,6 +332,16 @@ button.ctrl.primary {
   border-radius: var(--radius);
   padding: 8px;
   font-size: 12px;
+}
+
+.xiaozhi-log {
+  max-height: min(60vh, 420px);
+  min-height: 200px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  line-height: 1.45;
+  color: var(--text);
 }
 
 .files-meta { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
@@ -324,6 +384,7 @@ table.files td, table.files th {
 }
 
 #gcodegen_status { margin-top: 8px; font-size: 0.85rem; color: var(--muted); }
+.gcodegen-param-hint { margin: 4px 0 10px; font-size: 0.8rem; }
 
 .hide_it { display: none !important; }
 

@@ -26,7 +26,7 @@ static lv_obj_t *g_pos_y_label = nullptr;
 
 /** Gap between jog pad and step / ctrl columns. */
 #define PRINT_SIDE_GAP      8
-#define PRINT_CTRL_BTN_GAP  12
+#define PRINT_CTRL_BTN_GAP  20
 #define PRINT_CTRL_BTN_W    96
 #define PRINT_CTRL_BTN_H    44
 
@@ -329,11 +329,13 @@ static lv_obj_t *create_ctrl_column(lv_obj_t *parent, int x, int y)
 
     lv_obj_t *run = laser_ui_create_button(col, "运行", UI_COLOR_RUN, lv_color_hex(0x388E3C));
     lv_obj_set_size(run, PRINT_CTRL_BTN_W, PRINT_CTRL_BTN_H);
+    lv_obj_set_ext_click_area(run, 0);
     lv_obj_add_event_cb(run, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_RUN)));
 
     lv_obj_t *pause = laser_ui_create_button(col, "暂停", UI_COLOR_PAUSE, lv_color_hex(0xE65100));
     lv_obj_set_size(pause, PRINT_CTRL_BTN_W, PRINT_CTRL_BTN_H);
+    lv_obj_set_ext_click_area(pause, 0);
     lv_obj_add_event_cb(pause, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PAUSE)));
 

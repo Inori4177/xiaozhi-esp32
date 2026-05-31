@@ -87,7 +87,7 @@ esp_err_t webui_ws_handler(httpd_req_t *req)
         webui_log_append(resp);
         webui_ws_broadcast(resp);
     } else {
-        (void)webui_command_dispatch(buf, resp, sizeof(resp));
+        (void)webui_command_dispatch_ws(buf, resp, sizeof(resp));
     }
     httpd_ws_frame_t reply = {};
     reply.type = HTTPD_WS_TYPE_TEXT;

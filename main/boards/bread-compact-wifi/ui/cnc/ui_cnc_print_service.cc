@@ -44,12 +44,19 @@ static int s_job_total_cmds = 0;
 static int s_job_done_cmds = 0;
 static float s_job_total_est_sec = 0.0f;
 
+static std::vector<GCodeCommand> s_active_commands;
+static size_t s_resume_index = 0;
+static volatile bool s_pause_requested = false;
+static bool s_job_suspended = false;
+static int s_last_spindle = 0;
+
 typedef enum {
     CNC_WORK_GCODE = 0,
     CNC_WORK_JOG,
     CNC_WORK_HOME,
     CNC_WORK_LASER_OFF,
     CNC_WORK_FILE,
+    CNC_WORK_RESUME,
 } cnc_work_id_t;
 
 typedef struct {
@@ -188,6 +195,8 @@ static void begin_tracked_job(const std::vector<GCodeCommand> &commands, bool pr
     estimate_commands(commands, &s_job_total_cmds, &s_job_total_est_sec);
     s_is_print_job = print_job;
     s_paused = false;
+    s_job_suspended = false;
+    s_pause_requested = false;
     s_work_state = print_job ? UI_CNC_WORK_RUNNING : UI_CNC_WORK_JOGGING;
     refresh_progress_locked();
 }
@@ -236,6 +245,31 @@ static void clamp_target_mm(float *x_mm, float *y_mm)
     ui_cnc_clamp_mm(x_mm, y_mm);
 }
 
+static bool move_linear_mm(float target_x, float target_y, float feed_mm_min, bool rapid);
+static bool exec_parsed_commands_range(size_t start_index);
+static void finish_job_if_complete(bool completed);
+static void restore_laser_for_resume(void);
+
+static bool wait_motion_or_pause(float cur_x, float cur_y, float target_x, float target_y)
+{
+    while (Stepper::IsBusy()) {
+        if (s_pause_requested) {
+            const float prog = Stepper::GetBlockProgress();
+            const float dx = target_x - cur_x;
+            const float dy = target_y - cur_y;
+            ui_cnc_motion_facade_end_segment_mm(cur_x + dx * prog, cur_y + dy * prog);
+            Stepper::AbortMotion();
+            return false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+        taskYIELD();
+    }
+    if (s_pause_requested) {
+        return false;
+    }
+    return true;
+}
+
 static bool move_linear_mm(float target_x, float target_y, float feed_mm_min, bool rapid)
 {
     clamp_target_mm(&target_x, &target_y);
@@ -267,11 +301,14 @@ static bool move_linear_mm(float target_x, float target_y, float feed_mm_min, bo
         }
         block.programmed_rate = rate;
 
+        ui_cnc_motion_facade_begin_segment_mm(cur_x, cur_y, target_x, target_y, rate);
         Stepper::SubmitBlock(&block);
-        Stepper::WaitForIdle();
+        if (!wait_motion_or_pause(cur_x, cur_y, target_x, target_y)) {
+            return false;
+        }
     }
 
-    ui_cnc_motion_facade_set_position_mm(target_x, target_y);
+    ui_cnc_motion_facade_end_segment_mm(target_x, target_y);
     Stepper::GoIdle();
     return true;
 }
@@ -288,18 +325,40 @@ static void set_laser_spindle(int spindle)
     }
 }
 
-static void exec_parsed_commands(const std::vector<GCodeCommand> &commands)
+static void enter_paused_state(size_t next_index)
+{
+    s_resume_index = next_index;
+    s_job_suspended = true;
+    s_paused = true;
+    s_pause_requested = false;
+    s_work_state = UI_CNC_WORK_PAUSED;
+    set_laser_spindle(0);
+    Stepper::AbortMotion();
+    refresh_elapsed_locked();
+    ESP_LOGI(TAG, "paused at command %u/%u", static_cast<unsigned>(next_index),
+             static_cast<unsigned>(s_active_commands.size()));
+}
+
+static bool exec_parsed_commands_range(size_t start_index)
 {
     ui_cnc_motion_facade_init();
 
-    const size_t total = commands.size();
-    for (size_t i = 0; i < total; ++i) {
-        const auto &cmd = commands[i];
+    const size_t total = s_active_commands.size();
+    for (size_t i = start_index; i < total; ++i) {
+        if (s_pause_requested) {
+            enter_paused_state(i);
+            return false;
+        }
+        taskYIELD();
+        vTaskDelay(1);
+
+        const auto &cmd = s_active_commands[i];
         switch (cmd.type) {
         case GCodeCommand::G0: {
-            float tx = cmd.x;
-            float ty = cmd.y;
-            move_linear_mm(tx, ty, UI_CNC_RAPID_FEED_MM_MIN, true);
+            if (!move_linear_mm(cmd.x, cmd.y, UI_CNC_RAPID_FEED_MM_MIN, true)) {
+                enter_paused_state(i);
+                return false;
+            }
             break;
         }
         case GCodeCommand::G1: {
@@ -311,14 +370,27 @@ static void exec_parsed_commands(const std::vector<GCodeCommand> &commands)
             float cur_y = 0.0f;
             ui_cnc_motion_facade_get_position_mm(&cur_x, &cur_y);
             if (fabsf(cmd.x - cur_x) > 0.001f || fabsf(cmd.y - cur_y) > 0.001f) {
-                move_linear_mm(cmd.x, cmd.y, s_feed_mm_min, false);
+                if (!move_linear_mm(cmd.x, cmd.y, s_feed_mm_min, false)) {
+                    enter_paused_state(i);
+                    return false;
+                }
             }
             break;
         }
         case GCodeCommand::M3:
+            if (s_pause_requested) {
+                enter_paused_state(i);
+                return false;
+            }
+            s_last_spindle = cmd.spindle;
             set_laser_spindle(cmd.spindle);
             break;
         case GCodeCommand::M5:
+            if (s_pause_requested) {
+                enter_paused_state(i);
+                return false;
+            }
+            s_last_spindle = 0;
             set_laser_spindle(0);
             break;
         case GCodeCommand::G21:
@@ -329,52 +401,86 @@ static void exec_parsed_commands(const std::vector<GCodeCommand> &commands)
         }
         ui_cnc_print_service_notify_job_progress(i + 1, total);
     }
+
+    s_active_commands.clear();
+    s_resume_index = 0;
+    s_job_suspended = false;
+    s_pause_requested = false;
+    return true;
 }
 
-static void execute_gcode_blocking(const char *gcode_text)
+static bool execute_gcode_blocking(const char *gcode_text)
 {
     if (gcode_text == nullptr || gcode_text[0] == '\0') {
-        return;
+        return true;
     }
     set_job_name_from_path("G-code");
 
-    const auto commands = GCodeParser::Parse(std::string(gcode_text));
-    ESP_LOGI(TAG, "Execute %d parsed commands", static_cast<int>(commands.size()));
-    begin_tracked_job(commands, true);
-    exec_parsed_commands(commands);
+    s_active_commands = GCodeParser::Parse(std::string(gcode_text));
+    ESP_LOGI(TAG, "Execute %d parsed commands", static_cast<int>(s_active_commands.size()));
+    begin_tracked_job(s_active_commands, true);
+    return exec_parsed_commands_range(0);
 }
 
-static void execute_gcode_file_blocking(const char *path)
+static bool execute_gcode_file_blocking(const char *path)
 {
     if (path == nullptr || path[0] == '\0') {
-        return;
+        return true;
     }
     set_job_name_from_path(path);
     FILE *f = fopen(path, "rb");
     if (f == nullptr) {
         ESP_LOGE(TAG, "open failed: %s", path);
-        return;
+        return true;
     }
     std::string chunk;
     chunk.reserve(4096);
     char line[256];
-    std::vector<GCodeCommand> all_commands;
+    s_active_commands.clear();
     while (fgets(line, sizeof(line), f) != nullptr) {
+        if (s_pause_requested) {
+            fclose(f);
+            if (!chunk.empty()) {
+                const auto part = GCodeParser::Parse(chunk);
+                s_active_commands.insert(s_active_commands.end(), part.begin(), part.end());
+            }
+            if (!s_active_commands.empty()) {
+                begin_tracked_job(s_active_commands, true);
+                enter_paused_state(0);
+            }
+            return false;
+        }
         chunk.append(line);
         if (chunk.size() >= 3500) {
             const auto part = GCodeParser::Parse(chunk);
-            all_commands.insert(all_commands.end(), part.begin(), part.end());
+            s_active_commands.insert(s_active_commands.end(), part.begin(), part.end());
             chunk.clear();
+            taskYIELD();
+            vTaskDelay(1);
         }
     }
     fclose(f);
     if (!chunk.empty()) {
         const auto part = GCodeParser::Parse(chunk);
-        all_commands.insert(all_commands.end(), part.begin(), part.end());
+        s_active_commands.insert(s_active_commands.end(), part.begin(), part.end());
     }
-    ESP_LOGI(TAG, "File %s -> %d commands", path, static_cast<int>(all_commands.size()));
-    begin_tracked_job(all_commands, true);
-    exec_parsed_commands(all_commands);
+    ESP_LOGI(TAG, "File %s -> %d commands", path, static_cast<int>(s_active_commands.size()));
+    begin_tracked_job(s_active_commands, true);
+    return exec_parsed_commands_range(0);
+}
+
+static void finish_job_if_complete(bool completed)
+{
+    if (!completed) {
+        return;
+    }
+    s_work_state = UI_CNC_WORK_IDLE;
+    s_progress_pct = 100;
+    refresh_elapsed_locked();
+    s_has_eta = true;
+    s_eta_sec = 0;
+    s_is_print_job = false;
+    s_job_suspended = false;
 }
 
 static bool ensure_worker_started(void)
@@ -410,9 +516,36 @@ static bool post_work(const cnc_work_msg_t *msg)
     return true;
 }
 
+static bool has_active_print_job(void)
+{
+    if (!s_is_print_job) {
+        return false;
+    }
+    if (s_job_suspended) {
+        return true;
+    }
+    return s_work_state == UI_CNC_WORK_RUNNING || s_work_state == UI_CNC_WORK_PAUSED || s_busy;
+}
+
+static bool transport_action_debounced(int64_t *last_us)
+{
+    const int64_t now = esp_timer_get_time();
+    if (last_us != nullptr && now - *last_us < 400000LL) {
+        return true;
+    }
+    if (last_us != nullptr) {
+        *last_us = now;
+    }
+    return false;
+}
+
 static bool post_gcode_async(const char *gcode_text)
 {
     if (gcode_text == nullptr || gcode_text[0] == '\0') {
+        return false;
+    }
+    if (has_active_print_job()) {
+        ESP_LOGW(TAG, "reject gcode while print job active");
         return false;
     }
     cnc_work_msg_t msg = {};
@@ -420,6 +553,18 @@ static bool post_gcode_async(const char *gcode_text)
     strncpy(msg.gcode, gcode_text, sizeof(msg.gcode) - 1);
     msg.gcode[sizeof(msg.gcode) - 1] = '\0';
     return post_work(&msg);
+}
+
+static void restore_laser_for_resume(void)
+{
+    if (s_last_spindle > 0) {
+        set_laser_spindle(s_last_spindle);
+        return;
+    }
+    const laser_ui_settings_t s = laser_ui_state_get_settings();
+    const int spindle = power_pct_to_spindle(s.laser_power_pct);
+    s_feed_mm_min = static_cast<float>(speed_pct_to_feed_mm_min(s.speed_pct));
+    set_laser_spindle(spindle);
 }
 
 static void cnc_worker_task(void *arg)
@@ -435,9 +580,11 @@ static void cnc_worker_task(void *arg)
         }
 
         s_busy = true;
+        bool job_completed = true;
         switch (msg.id) {
         case CNC_WORK_GCODE:
-            execute_gcode_blocking(msg.gcode);
+            job_completed = execute_gcode_blocking(msg.gcode);
+            finish_job_if_complete(job_completed);
             break;
         case CNC_WORK_JOG:
             ui_cnc_motion_facade_init();
@@ -468,28 +615,33 @@ static void cnc_worker_task(void *arg)
             refresh_elapsed_locked();
             break;
         case CNC_WORK_LASER_OFF:
-            ui_cnc_motion_facade_init();
-            s_paused = true;
-            s_work_state = UI_CNC_WORK_PAUSED;
+            s_pause_requested = true;
             set_laser_spindle(0);
-            Stepper::GoIdle();
+            Stepper::AbortMotion();
+            if (s_job_suspended) {
+                s_work_state = UI_CNC_WORK_PAUSED;
+                s_paused = true;
+            }
             refresh_elapsed_locked();
-            ESP_LOGI(TAG, "pause: laser off");
+            ESP_LOGI(TAG, "pause requested (legacy laser off)");
             break;
         case CNC_WORK_FILE:
-            execute_gcode_file_blocking(msg.file_path);
+            job_completed = execute_gcode_file_blocking(msg.file_path);
+            finish_job_if_complete(job_completed);
+            break;
+        case CNC_WORK_RESUME:
+            s_pause_requested = false;
+            s_paused = false;
+            s_work_state = UI_CNC_WORK_RUNNING;
+            restore_laser_for_resume();
+            job_completed = exec_parsed_commands_range(s_resume_index);
+            finish_job_if_complete(job_completed);
             break;
         default:
             break;
         }
         s_busy = false;
-        if (msg.id == CNC_WORK_GCODE || msg.id == CNC_WORK_FILE) {
-            s_work_state = UI_CNC_WORK_IDLE;
-            s_progress_pct = 100;
-            refresh_elapsed_locked();
-            s_has_eta = true;
-            s_eta_sec = 0;
-        } else if (msg.id == CNC_WORK_JOG || msg.id == CNC_WORK_HOME) {
+        if (msg.id == CNC_WORK_JOG || msg.id == CNC_WORK_HOME) {
             reset_job_status();
         }
     }
@@ -539,7 +691,6 @@ void ui_cnc_print_service_notify_job_begin(const char *gcode_text)
         return;
     }
 
-    s_busy = true;
     const auto commands = GCodeParser::Parse(std::string(gcode_text));
     begin_tracked_job(commands, true);
 }
@@ -553,7 +704,10 @@ void ui_cnc_print_service_notify_job_progress(size_t done, size_t total)
 
 void ui_cnc_print_service_notify_job_end(void)
 {
-    s_busy = false;
+    float x = 0.0f;
+    float y = 0.0f;
+    ui_cnc_motion_facade_get_position_mm(&x, &y);
+    ui_cnc_motion_facade_set_position_mm(x, y);
     s_work_state = UI_CNC_WORK_IDLE;
     s_progress_pct = 100;
     refresh_elapsed_locked();
@@ -602,6 +756,10 @@ bool ui_cnc_print_service_execute_gcode_file(const char *vfs_path)
     if (vfs_path == nullptr || vfs_path[0] == '\0') {
         return false;
     }
+    if (has_active_print_job()) {
+        ESP_LOGW(TAG, "reject file run while print job active");
+        return false;
+    }
     cnc_work_msg_t msg = {};
     msg.id = CNC_WORK_FILE;
     strncpy(msg.file_path, vfs_path, sizeof(msg.file_path) - 1);
@@ -632,14 +790,72 @@ static void jog_axis_async(char axis, bool positive)
 
 static void apply_settings_from_ui(void)
 {
+    ui_cnc_motion_facade_init();
     const laser_ui_settings_t s = laser_ui_state_get_settings();
     const int spindle = power_pct_to_spindle(s.laser_power_pct);
     s_feed_mm_min = static_cast<float>(speed_pct_to_feed_mm_min(s.speed_pct));
+    s_last_spindle = spindle;
+    set_laser_spindle(spindle);
+    ESP_LOGI(TAG, "settings → S%d F%.0f", spindle, static_cast<double>(s_feed_mm_min));
+}
 
-    char gcode[96];
-    snprintf(gcode, sizeof(gcode), "G21\nG90\nM3 S%d\nG1 F%d", spindle,
-             static_cast<int>(s_feed_mm_min));
-    post_gcode_async(gcode);
+void ui_cnc_print_service_apply_settings(void)
+{
+    apply_settings_from_ui();
+}
+
+bool ui_cnc_print_service_has_suspended_job(void)
+{
+    return s_job_suspended && !s_active_commands.empty();
+}
+
+bool ui_cnc_print_service_poll_pause_abort(void)
+{
+    if (!s_pause_requested) {
+        return false;
+    }
+    Stepper::AbortMotion();
+    set_laser_spindle(0);
+    return true;
+}
+
+void ui_cnc_print_service_pause(void)
+{
+    static int64_t s_last_pause_us = 0;
+    if (transport_action_debounced(&s_last_pause_us)) {
+        ESP_LOGD(TAG, "pause ignored (debounce)");
+        return;
+    }
+    s_pause_requested = true;
+    set_laser_spindle(0);
+    Stepper::AbortMotion();
+    ESP_LOGI(TAG, "pause requested");
+}
+
+void ui_cnc_print_service_run(void)
+{
+    static int64_t s_last_run_us = 0;
+    if (transport_action_debounced(&s_last_run_us)) {
+        ESP_LOGD(TAG, "run ignored (debounce)");
+        return;
+    }
+    if (s_job_suspended && !s_active_commands.empty()) {
+        cnc_work_msg_t msg = {};
+        msg.id = CNC_WORK_RESUME;
+        post_work(&msg);
+        ESP_LOGI(TAG, "resume queued from cmd %u", static_cast<unsigned>(s_resume_index));
+        return;
+    }
+
+    const laser_ui_settings_t s = laser_ui_state_get_settings();
+    const int spindle = power_pct_to_spindle(s.laser_power_pct);
+    s_feed_mm_min = static_cast<float>(speed_pct_to_feed_mm_min(s.speed_pct));
+    s_last_spindle = spindle;
+    s_paused = false;
+    s_work_state = UI_CNC_WORK_RUNNING;
+    ui_cnc_motion_facade_init();
+    set_laser_spindle(spindle);
+    ESP_LOGI(TAG, "run: laser on, feed %.0f mm/min", static_cast<double>(s_feed_mm_min));
 }
 
 void ui_cnc_print_service_on_event(laser_ui_event_id_t id)
@@ -663,27 +879,15 @@ void ui_cnc_print_service_on_event(laser_ui_event_id_t id)
         post_work(&msg);
         break;
     }
-    case LASER_EVT_RUN: {
-        const laser_ui_settings_t s = laser_ui_state_get_settings();
-        const int spindle = power_pct_to_spindle(s.laser_power_pct);
-        s_feed_mm_min = static_cast<float>(speed_pct_to_feed_mm_min(s.speed_pct));
-        s_paused = false;
-        s_work_state = UI_CNC_WORK_RUNNING;
-        char gcode[64];
-        snprintf(gcode, sizeof(gcode), "M3 S%d\nG1 F%d", spindle, static_cast<int>(s_feed_mm_min));
-        post_gcode_async(gcode);
-        ESP_LOGI(TAG, "run queued: laser on, feed %.0f mm/min", static_cast<double>(s_feed_mm_min));
+    case LASER_EVT_RUN:
+        ui_cnc_print_service_run();
         break;
-    }
-    case LASER_EVT_PAUSE: {
-        cnc_work_msg_t msg = {};
-        msg.id = CNC_WORK_LASER_OFF;
-        post_work(&msg);
+    case LASER_EVT_PAUSE:
+        ui_cnc_print_service_pause();
         break;
-    }
     case LASER_EVT_SETTINGS_APPLY:
         ESP_LOGI(TAG, "settings apply queued → local CNC");
-        apply_settings_from_ui();
+        ui_cnc_print_service_apply_settings();
         break;
     case LASER_EVT_STEP_CHANGED:
         ESP_LOGD(TAG, "jog step %.1f mm", static_cast<double>(laser_ui_state_get_jog_step_mm()));

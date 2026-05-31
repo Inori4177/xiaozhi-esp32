@@ -98,6 +98,24 @@ httpd_handle_t webui_http_start(void)
         .handler = webui_pick_handler,
         .user_ctx = nullptr,
     };
+    static const httpd_uri_t run_uri = {
+        .uri = WEBUI_RUN_PATH,
+        .method = HTTP_POST,
+        .handler = webui_run_handler,
+        .user_ctx = nullptr,
+    };
+    static const httpd_uri_t pause_uri = {
+        .uri = WEBUI_PAUSE_PATH,
+        .method = HTTP_POST,
+        .handler = webui_pause_handler,
+        .user_ctx = nullptr,
+    };
+    static const httpd_uri_t chat_uri = {
+        .uri = WEBUI_CHAT_PATH,
+        .method = HTTP_GET,
+        .handler = webui_chat_handler,
+        .user_ctx = nullptr,
+    };
 
     httpd_register_uri_handler(s_server, &root_uri);
     httpd_register_uri_handler(s_server, &index_uri);
@@ -111,6 +129,9 @@ httpd_handle_t webui_http_start(void)
     httpd_register_uri_handler(s_server, &status_uri);
     httpd_register_uri_handler(s_server, &settings_uri);
     httpd_register_uri_handler(s_server, &pick_uri);
+    httpd_register_uri_handler(s_server, &run_uri);
+    httpd_register_uri_handler(s_server, &pause_uri);
+    httpd_register_uri_handler(s_server, &chat_uri);
 
     webui_ws_set_server(s_server);
     ESP_LOGI(TAG, "HTTP server on port %d", WEBUI_HTTP_PORT);

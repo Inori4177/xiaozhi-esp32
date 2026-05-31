@@ -53,6 +53,24 @@ static void dispatch_lvgl_handlers(void *user_data)
     }
 }
 
+/** RUN/PAUSE 在独立高优先级任务执行，避免与 ui_cnc_worker 同核优先级反转导致暂停无效。 */
+static void cnc_transport_invoke_task(void *param)
+{
+    const auto id = static_cast<laser_ui_event_id_t>(reinterpret_cast<intptr_t>(param));
+    ui_cnc_print_service_on_event(id);
+    vTaskDelete(nullptr);
+}
+
+static void dispatch_cnc_transport(laser_ui_event_id_t id)
+{
+    if (xTaskCreatePinnedToCore(cnc_transport_invoke_task, "cnc_transport", 2560,
+                                reinterpret_cast<void *>(static_cast<intptr_t>(id)), 6, nullptr,
+                                1) != pdPASS) {
+        ESP_LOGW(TAG, "cnc_transport task create failed, inline dispatch");
+        ui_cnc_print_service_on_event(id);
+    }
+}
+
 static void ui_evt_task(void *arg)
 {
     (void)arg;
@@ -60,6 +78,11 @@ static void ui_evt_task(void *arg)
 
     for (;;) {
         if (xQueueReceive(s_evt_queue, &id, portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+
+        if (id == LASER_EVT_RUN || id == LASER_EVT_PAUSE) {
+            dispatch_cnc_transport(id);
             continue;
         }
 

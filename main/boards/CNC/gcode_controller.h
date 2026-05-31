@@ -294,25 +294,39 @@ public:
                 xTaskCreatePinnedToCore([](void* arg) {
                     auto* ctx = static_cast<Ctx*>(arg);
                     try {
-                        MotionController::GlobalInit(106.666f, 106.666f, 700.0f, 800.0f, 0.02f, 42.0f);
                         vTaskDelay(pdMS_TO_TICKS(100));  // 等待步进驱动稳定，避免首次移动丢步
 #if CONFIG_MSP3525_LASER_UI
-                        ui_cnc_print_service_notify_job_begin(ctx->gcode.c_str());
-#endif
+                        constexpr const char *kKanjiTmpGcode = "/localfs/kanji_tmp.gcode";
+                        FILE *gf = fopen(kKanjiTmpGcode, "wb");
+                        if (gf == nullptr) {
+                            throw std::runtime_error("无法写入临时 G-code");
+                        }
+                        const size_t written =
+                            fwrite(ctx->gcode.data(), 1, ctx->gcode.size(), gf);
+                        fclose(gf);
+                        if (written != ctx->gcode.size()) {
+                            throw std::runtime_error("G-code 写入不完整");
+                        }
+                        if (!ui_cnc_print_service_execute_gcode_file(kKanjiTmpGcode)) {
+                            throw std::runtime_error("CNC 忙，无法开始雕刻");
+                        }
+                        while (ui_cnc_print_service_is_busy()) {
+                            vTaskDelay(pdMS_TO_TICKS(10));
+                        }
+                        if (ui_cnc_print_service_has_suspended_job()) {
+                            ESP_LOGI("KanjiVG", "Engrave paused, %d lines", ctx->line_count);
+                        } else {
+                            ESP_LOGI("KanjiVG", "Motion done, %d lines", ctx->line_count);
+                            Application::GetInstance().SendListenDetect("雕刻已完成：" + ctx->text);
+                        }
+#else
+                        MotionController::GlobalInit(106.666f, 106.666f, 700.0f, 800.0f, 0.02f, 42.0f);
                         MotionController::Get().Execute(ctx->gcode);
-#if CONFIG_MSP3525_LASER_UI
-                        ui_cnc_print_service_notify_job_end();
-#endif
                         Stepper::GoIdle();
                         ESP_LOGI("KanjiVG", "Motion done, %d lines", ctx->line_count);
-
-                        // [bread-compact-wifi/CNC 整合] 须走 Application::SendListenDetect（见 application.h），
-                        // 勿改为 protocol_->SendListenDetect 或在 xTask 内直接发 JSON。
                         Application::GetInstance().SendListenDetect("雕刻已完成：" + ctx->text);
-                    } catch (const std::exception& e) {
-#if CONFIG_MSP3525_LASER_UI
-                        ui_cnc_print_service_notify_job_end();
 #endif
+                    } catch (const std::exception& e) {
                         ESP_LOGE("KanjiVG", "Engrave failed: %s", e.what());
                         Application::GetInstance().SendListenDetect("雕刻失败：" + std::string(e.what()));
                     }

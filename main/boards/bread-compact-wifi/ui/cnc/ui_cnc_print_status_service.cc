@@ -164,7 +164,7 @@ static void refresh_status_widgets(void)
     if (g_pos_x != nullptr || g_pos_y != nullptr) {
         float x = 0.0f;
         float y = 0.0f;
-        ui_cnc_motion_facade_get_position_mm(&x, &y);
+        ui_cnc_motion_facade_get_display_position_mm(&x, &y);
 
         char buf[16];
         if (g_pos_x != nullptr) {

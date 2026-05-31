@@ -49,6 +49,7 @@
     <button type="button" data-tab="files">LocalFS</button>
     <button type="button" data-tab="gcodegen">图/文 G-code</button>
     <button type="button" data-tab="settings">设置</button>
+    <button type="button" data-tab="xiaozhi">小智</button>
   </nav>
 
   <main class="panels">
@@ -57,6 +58,14 @@
       <div class="cmd_row">
         <input type="text" id="custom_cmd_txt" placeholder="G-code 或 [ESP700]/file.gcode" autocomplete="off">
         <button type="button" class="ctrl primary" id="send_btn">发送</button>
+      </div>
+      <div class="transport_row">
+        <button type="button" class="ctrl transport-btn run-btn" id="cnc_run_btn" title="运行 / 继续雕刻">
+          <span class="transport-icon" aria-hidden="true">▶</span> 运行
+        </button>
+        <button type="button" class="ctrl transport-btn pause-btn" id="cnc_pause_btn" title="暂停：关激光并停止运动">
+          <span class="transport-icon" aria-hidden="true">⏸</span> 暂停
+        </button>
       </div>
     </section>
 
@@ -84,6 +93,27 @@
         <button type="button" class="jog-btn" data-jog="Y-1">Y−</button>
         <span></span>
       </div>
+
+      <details class="acc jog-pick" open>
+        <summary>调整位置 · 选定雕刻起点（42×42 mm）</summary>
+        <div class="pick-wrap">
+          <div id="pick_map" class="pick-map">
+            <div class="work-bounds"></div>
+            <div id="pick_head" class="pick-head" title="激光头当前位置"></div>
+            <div id="pick_cursor" class="pick-cursor" title="拖动设定起点"></div>
+          </div>
+          <div class="pick-readout">
+            <span>光标 <strong id="pick_cx">0.0</strong> / <strong id="pick_cy">0.0</strong> mm</span>
+            <span>机头 <strong id="pick_hx">0.0</strong> / <strong id="pick_hy">0.0</strong> mm</span>
+          </div>
+          <div class="btn-row">
+            <button type="button" class="ctrl" id="pick_reset_btn">复位</button>
+            <button type="button" class="ctrl primary" id="pick_confirm_btn">确定并移动</button>
+          </div>
+          <p class="hint">坐标原点 (0,0) 在工作区<strong>左下角</strong>。拖动十字到雕刻区域内，松手后点「确定」— 与屏幕「选定」页一致，机头将移动到该点作为作业原点参考。</p>
+          <div id="pick_status" class="hint"></div>
+        </div>
+      </details>
     </section>
 
     <section id="panel_wifi" class="panel">
@@ -103,13 +133,13 @@
         <button type="button" class="ctrl" onclick="files_refreshFiles(files_currentPath)">刷新</button>
       </div>
       <table class="files">
-        <thead><tr><th>类型</th><th>名称</th><th>大小</th></tr></thead>
+        <thead><tr><th>类型</th><th>名称</th><th>大小</th><th>操作</th></tr></thead>
         <tbody id="file_list"></tbody>
       </table>
     </section>
 
     <section id="panel_gcodegen" class="panel gcodegen">
-      <p class="hint">生成文件上限约 120KB；过大请缩小宽度或降低预览分辨率。</p>
+      <p class="hint">工作区 42×42 mm；成品超出时将拒绝生成。G-code 上限约 120KB，线距过小会提示增大。</p>
       <fieldset>
         <label>模式
           <select id="gcodegen_mode" onchange="gcodegen_onModeChange()">
@@ -121,14 +151,18 @@
           <label>图片 <input type="file" id="gcodegen_image_input" accept=".png,.jpg,.jpeg,.bmp,.gif,.webp" onchange="gcodegen_onImageSelected(event)"></label>
         </div>
         <div id="gcodegen_text_group" class="hide_it">
-          <label>文字 <textarea id="gcodegen_text_input" rows="3"></textarea></label>
-          <label>字号 <input type="number" id="gcodegen_font_size" value="72"></label>
+          <label>文字 <textarea id="gcodegen_text_input" rows="3" placeholder="单行建议；多行会加高成品"></textarea></label>
+          <label>字号 px <input type="number" id="gcodegen_font_size" value="48" min="8" max="120" step="1"></label>
         </div>
-        <label>宽度 mm <input type="number" id="gcodegen_width_mm" value="42" step="0.1"></label>
-        <label>阈值 <input type="number" id="gcodegen_threshold" value="128" min="0" max="255"></label>
-        <label>功率 S <input type="number" id="gcodegen_power" value="500"></label>
-        <label>工作进给 <input type="number" id="gcodegen_feed_work" value="800"></label>
-        <label>空程进给 <input type="number" id="gcodegen_feed_travel" value="3000"></label>
+        <label>成品宽度 mm <input type="number" id="gcodegen_width_mm" value="30" min="1" max="42" step="0.1"></label>
+        <label>扫描线距 mm
+          <input type="number" id="gcodegen_line_spacing_mm" value="0.30" min="0.08" max="1.5" step="0.05">
+        </label>
+        <p class="hint gcodegen-param-hint">线距越小填充越密；预览按此线距重采样，与雕刻一致。</p>
+        <label>阈值 <input type="number" id="gcodegen_threshold" value="128" min="0" max="255" title="灰度分界：低于为黑(刻)，高于为白(不刻)"></label>
+        <label>功率 S <input type="number" id="gcodegen_power" value="500" min="1" max="1000" title="M3 激光 PWM，500≈50%"></label>
+        <label>工作进给 <input type="number" id="gcodegen_feed_work" value="800" min="1" title="G1 雕刻时的 F (mm/min)"></label>
+        <label>空程进给 <input type="number" id="gcodegen_feed_travel" value="3000" min="1" title="G0 空走时的 F (mm/min)"></label>
         <label>文件名 <input type="text" id="gcodegen_filename" value="image.gcode"></label>
         <label><input type="checkbox" id="gcodegen_invert"> 反色</label>
         <canvas id="gcodegen_work_canvas" class="hide_it" width="1" height="1"></canvas>
@@ -144,26 +178,6 @@
     </section>
 
     <section id="panel_settings" class="panel settings-panel">
-      <details class="acc" open>
-        <summary>选定雕刻位置（42×42 mm）</summary>
-        <div class="pick-wrap">
-          <div id="pick_map" class="pick-map">
-            <div class="work-bounds"></div>
-            <div id="pick_head" class="pick-head" title="激光头当前位置"></div>
-            <div id="pick_cursor" class="pick-cursor" title="拖动设定起点"></div>
-          </div>
-          <div class="pick-readout">
-            <span>光标 <strong id="pick_cx">0.0</strong> / <strong id="pick_cy">0.0</strong> mm</span>
-            <span>机头 <strong id="pick_hx">0.0</strong> / <strong id="pick_hy">0.0</strong> mm</span>
-          </div>
-          <div class="btn-row">
-            <button type="button" class="ctrl" id="pick_reset_btn">复位</button>
-            <button type="button" class="ctrl primary" id="pick_confirm_btn">确定并移动</button>
-          </div>
-          <p class="hint">坐标原点 (0,0) 在工作区<strong>左下角</strong>。拖动十字到雕刻区域内，松手后点「确定」— 与屏幕「选定」页一致，机头将移动到该点作为作业原点参考。</p>
-        </div>
-      </details>
-
       <details class="acc acc-select" open>
         <summary>激光功率</summary>
         <div class="settings-field">
@@ -182,6 +196,11 @@
 
       <button type="button" class="ctrl primary" id="settings_apply_btn">应用设置到下位机</button>
       <div id="settings_status" class="hint"></div>
+    </section>
+
+    <section id="panel_xiaozhi" class="panel">
+      <p class="hint">与屏幕「小智」页相同的语音对话记录（轮询刷新）。</p>
+      <pre id="xiaozhi_log" class="scroll-box xiaozhi-log">加载中…</pre>
     </section>
   </main>
 

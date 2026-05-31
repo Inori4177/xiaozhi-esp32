@@ -3,6 +3,10 @@ var gcodegen_last_blob = null;
 var gcodegen_last_filename = "";
 /** 与固件 WEBUI_GCODEGEN_MAX_BYTES 一致 */
 var GCODEGEN_MAX_BYTES = 120 * 1024;
+/** 与固件 UI_CNC_WORK_SIZE_MM 一致 */
+var GCODEGEN_WORK_MAX_MM = 42;
+/** 单轴最大扫描行/列，防止线距过小导致 G-code 暴涨 */
+var GCODEGEN_MAX_SCAN_DIM = 520;
 
 function gcodegen_el(name) { return document.getElementById(name); }
 function gcodegen_setStatus(message, isError) {
@@ -27,7 +31,7 @@ function gcodegen_onImageSelected(event) {
 function gcodegen_renderTextToCanvas() {
     var text = gcodegen_el("gcodegen_text_input").value || "";
     if (!text.trim()) return null;
-    var fontSize = parseFloat(gcodegen_el("gcodegen_font_size").value || "72");
+    var fontSize = parseFloat(gcodegen_el("gcodegen_font_size").value || "48");
     var lineHeight = 1.2;
     var lines = text.split(/\r?\n/);
     var canvas = gcodegen_el("gcodegen_work_canvas"), ctx = canvas.getContext("2d");
@@ -80,6 +84,75 @@ function gcodegen_physicalSize(bin, widthMm) {
     var pitch = gcodegen_computePitch(w, h, widthMm);
     return { widthMm: widthMm, heightMm: h > 1 ? (h - 1) * pitch.yPitch : 0, xPitch: pitch.xPitch, yPitch: pitch.yPitch };
 }
+function gcodegen_validateWorkArea(bin, widthMm) {
+    var phys = gcodegen_physicalSize(bin, widthMm);
+    if (phys.widthMm > GCODEGEN_WORK_MAX_MM + 0.05) {
+        return "成品宽度 " + phys.widthMm.toFixed(1) + " mm 超出工作区 " + GCODEGEN_WORK_MAX_MM + " mm，请减小宽度";
+    }
+    if (phys.heightMm > GCODEGEN_WORK_MAX_MM + 0.05) {
+        return "成品高度 " + phys.heightMm.toFixed(1) + " mm 超出工作区 " + GCODEGEN_WORK_MAX_MM +
+            " mm，请减小宽度、字号或行数";
+    }
+    return "";
+}
+function gcodegen_resampleBinNearest(bin, newW, newH) {
+    var map = new Uint8Array(newW * newH);
+    for (var y = 0; y < newH; y++) {
+        var sy = bin.height > 1 ? Math.min(bin.height - 1, Math.floor(y * (bin.height - 1) / (newH - 1))) : 0;
+        for (var x = 0; x < newW; x++) {
+            var sx = bin.width > 1 ? Math.min(bin.width - 1, Math.floor(x * (bin.width - 1) / (newW - 1))) : 0;
+            map[y * newW + x] = bin.map[sy * bin.width + sx];
+        }
+    }
+    return { map: map, width: newW, height: newH };
+}
+/** 按目标线距重采样位图，使预览与 G-code 扫描密度一致。 */
+function gcodegen_resampleForLineSpacing(bin, widthMm, lineSpacingMm) {
+    if (!(lineSpacingMm > 0.01)) return bin;
+    var phys = gcodegen_physicalSize(bin, widthMm);
+    var targetW = Math.max(2, Math.ceil(phys.widthMm / lineSpacingMm) + 1);
+    var targetH = Math.max(2, Math.ceil(phys.heightMm / lineSpacingMm) + 1);
+    if (targetW === bin.width && targetH === bin.height) return bin;
+    return gcodegen_resampleBinNearest(bin, targetW, targetH);
+}
+function gcodegen_validateScanDim(bin) {
+    if (bin.width > GCODEGEN_MAX_SCAN_DIM || bin.height > GCODEGEN_MAX_SCAN_DIM) {
+        return "线距过小，扫描网格 " + bin.width + "×" + bin.height +
+            " 超限（最大 " + GCODEGEN_MAX_SCAN_DIM + "），请增大扫描线距";
+    }
+    return "";
+}
+function gcodegen_readNumericParams() {
+    return {
+        widthMm: parseFloat(gcodegen_el("gcodegen_width_mm").value || "0"),
+        threshold: parseInt(gcodegen_el("gcodegen_threshold").value || "128", 10),
+        invert: !!gcodegen_el("gcodegen_invert").checked,
+        lineSpacingMm: parseFloat(gcodegen_el("gcodegen_line_spacing_mm").value || "0.3"),
+        power: parseInt(gcodegen_el("gcodegen_power").value || "0", 10),
+        feedWork: parseFloat(gcodegen_el("gcodegen_feed_work").value || "0"),
+        feedTravel: parseFloat(gcodegen_el("gcodegen_feed_travel").value || "0")
+    };
+}
+function gcodegen_prepareJob() {
+    var source = gcodegen_prepareSourceCanvas();
+    if (!source) return { error: "请选择图片或输入文字" };
+    var p = gcodegen_readNumericParams();
+    if (!(p.widthMm > 0)) return { error: "宽度必须 > 0" };
+    if (p.widthMm > GCODEGEN_WORK_MAX_MM + 0.05) {
+        return { error: "宽度不能超过工作区 " + GCODEGEN_WORK_MAX_MM + " mm" };
+    }
+    if (!(p.lineSpacingMm > 0)) return { error: "扫描线距必须 > 0" };
+    var rawBin = gcodegen_binarize(
+        source.getContext("2d").getImageData(0, 0, source.width, source.height),
+        p.threshold, p.invert);
+    var areaErr = gcodegen_validateWorkArea(rawBin, p.widthMm);
+    if (areaErr) return { error: areaErr };
+    var bin = gcodegen_resampleForLineSpacing(rawBin, p.widthMm, p.lineSpacingMm);
+    var dimErr = gcodegen_validateScanDim(bin);
+    if (dimErr) return { error: dimErr };
+    var phys = gcodegen_physicalSize(bin, p.widthMm);
+    return { bin: bin, rawBin: rawBin, phys: phys, params: p };
+}
 function gcodegen_drawBinToCanvas(canvas, bin) {
     var w = bin.width, h = bin.height, ctx = canvas.getContext("2d");
     canvas.width = w; canvas.height = h;
@@ -92,13 +165,9 @@ function gcodegen_drawBinToCanvas(canvas, bin) {
     return canvas;
 }
 function gcodegen_preview() {
-    var source = gcodegen_prepareSourceCanvas();
-    if (!source) return gcodegen_setStatus("请选择图片或输入文字", true);
-    var threshold = parseInt(gcodegen_el("gcodegen_threshold").value || "128", 10);
-    var invert = !!gcodegen_el("gcodegen_invert").checked;
-    var bin = gcodegen_binarize(source.getContext("2d").getImageData(0, 0, source.width, source.height), threshold, invert);
-    var widthMm = parseFloat(gcodegen_el("gcodegen_width_mm").value || "42");
-    var phys = gcodegen_physicalSize(bin, widthMm);
+    var job = gcodegen_prepareJob();
+    if (job.error) return gcodegen_setStatus(job.error, true);
+    var bin = job.bin, phys = job.phys, p = job.params;
     var off = document.createElement("canvas");
     gcodegen_drawBinToCanvas(off, bin);
     var preview = gcodegen_el("gcodegen_preview"), pctx = preview.getContext("2d");
@@ -109,23 +178,26 @@ function gcodegen_preview() {
     pctx.fillStyle = "#fff"; pctx.fillRect(0, 0, dispW, dispH);
     pctx.imageSmoothingEnabled = false;
     pctx.drawImage(off, 0, 0, bin.width, bin.height, 0, 0, dispW, dispH);
-    gcodegen_setStatus("Preview " + bin.width + "x" + bin.height + " px", false);
+    gcodegen_setStatus(
+        "预览 " + bin.width + "×" + bin.height + " 线 → 成品 " +
+        phys.widthMm.toFixed(1) + "×" + phys.heightMm.toFixed(1) + " mm，线距约 " +
+        phys.yPitch.toFixed(2) + " mm（与 G-code 一致）",
+        false
+    );
 }
 function gcodegen_validateParams() {
-    var widthMm = parseFloat(gcodegen_el("gcodegen_width_mm").value || "0");
-    var power = parseInt(gcodegen_el("gcodegen_power").value || "0", 10);
-    var feedWork = parseFloat(gcodegen_el("gcodegen_feed_work").value || "0");
-    var feedTravel = parseFloat(gcodegen_el("gcodegen_feed_travel").value || "0");
-    if (!(widthMm > 0)) return "Width must be > 0";
-    if (!(power > 0)) return "Power must be > 0";
-    if (!(feedWork > 0 && feedTravel > 0)) return "Feed rates must be > 0";
+    var p = gcodegen_readNumericParams();
+    if (!(p.widthMm > 0)) return "宽度必须 > 0";
+    if (p.widthMm > GCODEGEN_WORK_MAX_MM) return "宽度不能超过 " + GCODEGEN_WORK_MAX_MM + " mm";
+    if (!(p.power > 0)) return "功率必须 > 0";
+    if (!(p.feedWork > 0 && p.feedTravel > 0)) return "进给必须 > 0";
+    if (!(p.lineSpacingMm > 0)) return "扫描线距必须 > 0";
     return "";
 }
 function gcodegen_rasterToGcode(bin, cfg) {
     var w = bin.width, h = bin.height, map = bin.map;
     var pitch = gcodegen_computePitch(w, h, cfg.widthMm);
     var yPitch = pitch.yPitch;
-    var heightMm = h > 1 ? (h - 1) * yPitch : 0;
     var lines = ["; Xiaozhi WebUI gcodegen", "G21", "G90", "M5", "G0 X0 Y0 F" + cfg.feedTravel];
     for (var row = 0; row < h; row++) {
         var y = ((h - 1 - row) * yPitch).toFixed(3);
@@ -150,16 +222,14 @@ function gcodegen_rasterToGcode(bin, cfg) {
 function gcodegen_generateBlob() {
     var err = gcodegen_validateParams();
     if (err) return gcodegen_setStatus(err, true), null;
-    var source = gcodegen_prepareSourceCanvas();
-    if (!source) return gcodegen_setStatus("请选择图片或输入文字", true), null;
-    var threshold = parseInt(gcodegen_el("gcodegen_threshold").value || "128", 10);
-    var invert = !!gcodegen_el("gcodegen_invert").checked;
-    var bin = gcodegen_binarize(source.getContext("2d").getImageData(0, 0, source.width, source.height), threshold, invert);
-    var gcode = gcodegen_rasterToGcode(bin, {
-        widthMm: parseFloat(gcodegen_el("gcodegen_width_mm").value),
-        power: parseInt(gcodegen_el("gcodegen_power").value, 10),
-        feedWork: parseFloat(gcodegen_el("gcodegen_feed_work").value),
-        feedTravel: parseFloat(gcodegen_el("gcodegen_feed_travel").value)
+    var job = gcodegen_prepareJob();
+    if (job.error) return gcodegen_setStatus(job.error, true), null;
+    var p = job.params;
+    var gcode = gcodegen_rasterToGcode(job.bin, {
+        widthMm: p.widthMm,
+        power: p.power,
+        feedWork: p.feedWork,
+        feedTravel: p.feedTravel
     });
     var filename = (gcodegen_el("gcodegen_filename").value || "image_engrave.gcode").trim();
     if (!/\.g(code|co)?$/i.test(filename)) filename += ".gcode";
@@ -168,7 +238,7 @@ function gcodegen_generateBlob() {
     if (gcodegen_last_blob.size > GCODEGEN_MAX_BYTES) {
         gcodegen_setStatus(
             "G-code 过大 (" + gcodegen_last_blob.size + " B)，上限 " + GCODEGEN_MAX_BYTES +
-            " B。请减小宽度或降低图片分辨率。",
+            " B。请增大扫描线距或减小宽度。",
             true
         );
         gcodegen_last_blob = null;

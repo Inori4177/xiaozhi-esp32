@@ -113,9 +113,11 @@ static void relayout_map_frame(void)
         lv_obj_set_width(g_title, side);
     }
 
-    lv_obj_set_size(g_map_frame, side, side);
-    lv_obj_align(g_map_frame, LV_ALIGN_BOTTOM_MID, 0, 0);
-    ui_pick_service_update_viewport_from_map_frame();
+    if (lv_obj_get_width(g_map_frame) != side || lv_obj_get_height(g_map_frame) != side) {
+        lv_obj_set_size(g_map_frame, side, side);
+        lv_obj_align(g_map_frame, LV_ALIGN_BOTTOM_MID, 0, 0);
+        ui_pick_service_update_viewport_from_map_frame();
+    }
 
     float cx = 0.0f;
     float cy = 0.0f;
@@ -258,12 +260,14 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
 
     lv_obj_t *btn_confirm = laser_ui_create_button(right_rail, "确定", UI_COLOR_NAV_ACTIVE, lv_color_hex(0x1A3050));
     lv_obj_set_size(btn_confirm, kSideBtnW, kSideBtnH);
+    lv_obj_set_ext_click_area(btn_confirm, 0);
     lv_obj_set_style_margin_top(btn_confirm, kCoordToBtnGap, LV_PART_MAIN);
     lv_obj_add_event_cb(btn_confirm, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PICK_CONFIRM)));
 
     lv_obj_t *btn_reset = laser_ui_create_button(right_rail, "回零", UI_COLOR_PANEL, lv_color_hex(0x2A2A2A));
     lv_obj_set_size(btn_reset, kSideBtnW, kSideBtnH);
+    lv_obj_set_ext_click_area(btn_reset, 0);
     lv_obj_set_style_margin_top(btn_reset, kConfirmToResetGap, LV_PART_MAIN);
     lv_obj_add_event_cb(btn_reset, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PICK_RESET)));

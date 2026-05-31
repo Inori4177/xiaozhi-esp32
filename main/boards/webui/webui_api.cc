@@ -14,6 +14,7 @@ extern "C" {
 #include "laser_ui_state.h"
 #include "ui/cnc/ui_cnc_config.h"
 }
+#include "ui/laser_ui_log.h"
 #endif
 
 static const char *TAG = "webui_api";
@@ -43,6 +44,30 @@ static int parse_json_int(const char *body, const char *key, int default_val)
         ++p;
     }
     return static_cast<int>(strtol(p, nullptr, 10));
+}
+
+static bool parse_json_bool(const char *body, const char *key, bool default_val)
+{
+    if (body == nullptr || key == nullptr) {
+        return default_val;
+    }
+    char pattern[32];
+    snprintf(pattern, sizeof(pattern), "\"%s\":", key);
+    const char *p = strstr(body, pattern);
+    if (p == nullptr) {
+        return default_val;
+    }
+    p += strlen(pattern);
+    while (*p == ' ' || *p == '\t') {
+        ++p;
+    }
+    if (strncmp(p, "true", 4) == 0) {
+        return true;
+    }
+    if (strncmp(p, "false", 5) == 0) {
+        return false;
+    }
+    return default_val;
 }
 
 static float parse_json_float(const char *body, const char *key, float default_val)
@@ -101,6 +126,7 @@ extern "C" esp_err_t webui_settings_handler(httpd_req_t *req)
     const int power = parse_json_int(body, "power_pct", -1);
     const int speed = parse_json_int(body, "speed_pct", -1);
     const int jog = parse_json_int(body, "jog_step_mm", -1);
+    const bool apply_cnc = parse_json_bool(body, "apply_cnc", false);
     if (power >= 0) {
         laser_ui_state_set_power_pct(power);
     }
@@ -109,6 +135,10 @@ extern "C" esp_err_t webui_settings_handler(httpd_req_t *req)
     }
     if (jog > 0) {
         laser_ui_state_set_jog_step_mm(static_cast<float>(jog));
+    }
+    if (apply_cnc) {
+        webui_cnc_apply_settings();
+        webui_notify_terminal("settings applied to CNC (M3/F)\n");
     }
     const laser_ui_settings_t s = laser_ui_state_get_settings();
     const float jog_mm = laser_ui_state_get_jog_step_mm();
@@ -190,6 +220,64 @@ extern "C" esp_err_t webui_pick_handler(httpd_req_t *req)
              static_cast<double>(y));
     httpd_resp_set_type(req, "application/json");
     httpd_resp_sendstr(req, resp);
+    return ESP_OK;
+#endif
+}
+
+extern "C" esp_err_t webui_run_handler(httpd_req_t *req)
+{
+#if !CONFIG_MSP3525_LASER_UI
+    httpd_resp_send_err(req, HTTPD_503_SERVICE_UNAVAILABLE, "CNC UI disabled");
+    return ESP_FAIL;
+#else
+    if (req->method != HTTP_POST) {
+        httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "POST only");
+        return ESP_FAIL;
+    }
+    const bool was_suspended = webui_cnc_has_suspended_job();
+    webui_cnc_run();
+    webui_notify_terminal(was_suspended ? "run: resume job\n" : "run: laser on\n");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, was_suspended ? "{\"ok\":true,\"action\":\"resume\"}"
+                                           : "{\"ok\":true,\"action\":\"run\"}");
+    return ESP_OK;
+#endif
+}
+
+extern "C" esp_err_t webui_pause_handler(httpd_req_t *req)
+{
+#if !CONFIG_MSP3525_LASER_UI
+    httpd_resp_send_err(req, HTTPD_503_SERVICE_UNAVAILABLE, "CNC UI disabled");
+    return ESP_FAIL;
+#else
+    if (req->method != HTTP_POST) {
+        httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "POST only");
+        return ESP_FAIL;
+    }
+    webui_cnc_pause();
+    webui_notify_terminal("pause: laser off, motion stop\n");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"ok\":true,\"action\":\"pause\"}");
+    return ESP_OK;
+#endif
+}
+
+extern "C" esp_err_t webui_chat_handler(httpd_req_t *req)
+{
+#if !CONFIG_MSP3525_LASER_UI
+    httpd_resp_send_err(req, HTTPD_503_SERVICE_UNAVAILABLE, "CNC UI disabled");
+    return ESP_FAIL;
+#else
+    if (req->method != HTTP_GET) {
+        httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "GET only");
+        return ESP_FAIL;
+    }
+    const char *text = laser_ui_log_get_text();
+    if (text == nullptr || text[0] == '\0') {
+        text = "暂无对话记录";
+    }
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    httpd_resp_sendstr(req, text);
     return ESP_OK;
 #endif
 }

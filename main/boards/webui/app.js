@@ -4,6 +4,8 @@ var ws_source = null;
 var websocket_started = false;
 var files_currentPath = "/";
 var status_timer = null;
+var xiaozhi_timer = null;
+var xiaozhi_tab_active = false;
 
 function $(id) { return document.getElementById(id); }
 
@@ -70,9 +72,25 @@ function show_tab(name) {
     document.querySelectorAll("nav.tabs button").forEach(function (b) {
         b.classList.toggle("active", b.dataset.tab === name);
     });
-    if (name === "settings" && typeof pick_refresh_layout === "function") {
+    if (name === "jog" && typeof pick_refresh_layout === "function") {
         requestAnimationFrame(pick_refresh_layout);
     }
+    xiaozhi_tab_active = (name === "xiaozhi");
+    if (xiaozhi_tab_active) {
+        poll_xiaozhi_log();
+    }
+}
+
+function poll_xiaozhi_log() {
+    fetch("/chat")
+        .then(function (r) { return r.text(); })
+        .then(function (t) {
+            var el = $("xiaozhi_log");
+            if (!el) return;
+            el.textContent = t || "暂无对话记录";
+            el.scrollTop = el.scrollHeight;
+        })
+        .catch(function () {});
 }
 
 function http_command(cmd, onok) {
@@ -151,8 +169,13 @@ function InitUI() {
             set_conn_status("就绪", true);
             files_refreshFiles("/");
             poll_status();
+            poll_xiaozhi_log();
             if (status_timer) clearInterval(status_timer);
             status_timer = setInterval(poll_status, 800);
+            if (xiaozhi_timer) clearInterval(xiaozhi_timer);
+            xiaozhi_timer = setInterval(function () {
+                if (xiaozhi_tab_active) poll_xiaozhi_log();
+            }, 1500);
         })
         .catch(function (e) {
             set_conn_status("初始化失败", false);
@@ -174,19 +197,34 @@ function files_dispatch(json) {
     tbody.innerHTML = "";
     if (files_currentPath !== "/") {
         var tr = document.createElement("tr");
-        tr.innerHTML = "<td colspan='3'><button type='button' class='ctrl' onclick=\"files_refreshFiles('/')\">/</button></td>";
+        tr.innerHTML = "<td colspan='4'><button type='button' class='ctrl' onclick=\"files_refreshFiles('/')\">/</button></td>";
         tbody.appendChild(tr);
     }
     (json.files || []).forEach(function (f) {
         var tr = document.createElement("tr");
+        var safeName = f.name.replace(/'/g, "\\'");
         if (String(f.size) === "-1") {
-            tr.innerHTML = "<td>[dir]</td><td>" + f.name + "</td><td></td>";
+            tr.innerHTML = "<td>[dir]</td><td>" + f.name + "</td><td></td><td></td>";
         } else {
-            tr.innerHTML = "<td>file</td><td>" + f.name + "</td><td>" + f.size +
-                " <button type='button' class='ctrl' onclick=\"files_delete('" + f.name.replace(/'/g, "\\'") + "')\">删除</button></td>";
+            var isGcode = /\.g(code|co)?$/i.test(f.name);
+            var runBtn = isGcode
+                ? "<button type='button' class='ctrl primary' onclick=\"files_run('" + safeName + "')\">运行</button> "
+                : "";
+            tr.innerHTML = "<td>file</td><td>" + f.name + "</td><td>" + f.size + "</td><td>" +
+                runBtn +
+                "<button type='button' class='ctrl' onclick=\"files_delete('" + safeName + "')\">删除</button></td>";
         }
         tbody.appendChild(tr);
     });
+}
+
+function files_run(name) {
+    var path = files_currentPath || "/";
+    if (!path.endsWith("/")) path += "/";
+    var cmd = "[ESP700]" + path + name;
+    var input = $("custom_cmd_txt");
+    if (input) input.value = cmd;
+    SendCustomCommand();
 }
 
 function files_delete(name) {
@@ -421,7 +459,8 @@ function settings_post_all() {
     var body = {
         power_pct: parseInt(pick_el("set_power_pct").value, 10),
         speed_pct: parseInt(pick_el("set_speed_pct").value, 10),
-        jog_step_mm: parseInt(pick_el("jog_step_mm").value, 10)
+        jog_step_mm: parseInt(pick_el("jog_step_mm").value, 10),
+        apply_cnc: true
     };
     return settings_post_field(body).then(function (j) {
         settings_form_dirty = false;
@@ -432,8 +471,12 @@ function settings_post_all() {
     });
 }
 
+function pick_status_el() {
+    return pick_el("pick_status") || pick_el("settings_status");
+}
+
 function pick_confirm() {
-    var st = pick_el("settings_status");
+    var st = pick_status_el();
     if (st) st.textContent = "移动中…";
     return fetch("/pick", {
         method: "POST",
@@ -452,8 +495,39 @@ function pick_confirm() {
     });
 }
 
+var cnc_transport_busy = false;
+
+function cnc_post_action(path, label) {
+    if (cnc_transport_busy) return Promise.resolve();
+    cnc_transport_busy = true;
+    return fetch(path, { method: "POST" })
+        .then(function (r) {
+            if (!r.ok) throw new Error(r.statusText);
+            return r.json();
+        })
+        .then(function (j) {
+            log_append(">> " + label + (j.action ? " (" + j.action + ")" : ""));
+            poll_status();
+            return j;
+        })
+        .catch(function (e) {
+            log_append("!! " + label + ": " + e.message);
+        })
+        .finally(function () {
+            setTimeout(function () { cnc_transport_busy = false; }, 450);
+        });
+}
+
+function cnc_run() {
+    return cnc_post_action("/run", "run");
+}
+
+function cnc_pause() {
+    return cnc_post_action("/pause", "pause");
+}
+
 function pick_reset() {
-    var st = pick_el("settings_status");
+    var st = pick_status_el();
     if (st) st.textContent = "复位中…";
     return fetch("/pick", {
         method: "POST",
@@ -489,7 +563,7 @@ function settings_init() {
             settings_post_all()
                 .then(function (j) {
                     if (statusEl) {
-                        statusEl.textContent = "已应用 — 功率 " + j.power_pct + "% 速度 " + j.speed_pct + "%";
+                        statusEl.textContent = "已应用并下发 CNC — 功率 " + j.power_pct + "% 速度 " + j.speed_pct + "%";
                     }
                 })
                 .catch(function (e) {
@@ -543,6 +617,10 @@ document.addEventListener("DOMContentLoaded", function () {
     $("custom_cmd_txt").addEventListener("keyup", function (e) {
         if (e.key === "Enter") SendCustomCommand();
     });
+    var runBtn = $("cnc_run_btn");
+    var pauseBtn = $("cnc_pause_btn");
+    if (runBtn) runBtn.addEventListener("click", cnc_run);
+    if (pauseBtn) pauseBtn.addEventListener("click", cnc_pause);
     document.querySelectorAll("[data-jog]").forEach(function (btn) {
         btn.addEventListener("click", function () {
             var code = btn.getAttribute("data-jog");
