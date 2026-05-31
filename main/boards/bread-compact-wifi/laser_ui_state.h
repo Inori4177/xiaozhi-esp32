@@ -2,6 +2,10 @@
 
 #include <lvgl.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     int material_index;
     int laser_power_pct;
@@ -24,6 +28,15 @@ void laser_ui_state_on_material_changed(lv_event_t *e);
 float laser_ui_state_get_jog_step_mm(void);
 laser_ui_settings_t laser_ui_state_get_settings(void);
 
+/** WebUI / 无 LVGL 控件时直接写入缓存（与屏幕档位一致）。 */
+void laser_ui_state_set_jog_step_mm(float step_mm);
+void laser_ui_state_set_power_pct(int pct);
+void laser_ui_state_set_speed_pct(int pct);
+
 void laser_ui_state_set_pick_origin(float x_mm, float y_mm);
 bool laser_ui_state_get_pick_origin(float *x_mm, float *y_mm);
 void laser_ui_state_clear_pick_origin(void);
+
+#ifdef __cplusplus
+}
+#endif

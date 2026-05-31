@@ -1,6 +1,8 @@
 #include "laser_ui_state.h"
 
+#include <cmath>
 #include <cstdio>
+#include <cstdlib>
 
 static lv_obj_t *g_step_label = nullptr;
 static lv_obj_t *g_step_slider = nullptr;
@@ -216,4 +218,56 @@ bool laser_ui_state_get_pick_origin(float *x_mm, float *y_mm)
 void laser_ui_state_clear_pick_origin(void)
 {
     g_pick_origin_valid = false;
+}
+
+void laser_ui_state_set_jog_step_mm(float step_mm)
+{
+    int best = 0;
+    float best_diff = 1e9f;
+    for (int i = 0; i < k_step_count; ++i) {
+        const float d = fabsf(k_step_mm[i] - step_mm);
+        if (d < best_diff) {
+            best_diff = d;
+            best = i;
+        }
+    }
+    g_cached_jog_step_mm = k_step_mm[best];
+    if (g_step_slider != nullptr) {
+        lv_slider_set_value(g_step_slider, best, LV_ANIM_OFF);
+        update_step_label();
+    }
+}
+
+void laser_ui_state_set_power_pct(int pct)
+{
+    if (pct < 0) {
+        pct = 0;
+    }
+    if (pct > 100) {
+        pct = 100;
+    }
+    g_cached_settings.laser_power_pct = pct;
+    if (g_power_slider != nullptr) {
+        const int idx = pct / 10;
+        lv_slider_set_value(g_power_slider, idx, LV_ANIM_OFF);
+        update_power_label();
+    }
+}
+
+void laser_ui_state_set_speed_pct(int pct)
+{
+    int best = 0;
+    int best_diff = 10000;
+    for (int i = 0; i < k_speed_count; ++i) {
+        const int d = abs(k_speed_pct[i] - pct);
+        if (d < best_diff) {
+            best_diff = d;
+            best = i;
+        }
+    }
+    g_cached_settings.speed_pct = k_speed_pct[best];
+    if (g_speed_slider != nullptr) {
+        lv_slider_set_value(g_speed_slider, best, LV_ANIM_OFF);
+        update_speed_label();
+    }
 }

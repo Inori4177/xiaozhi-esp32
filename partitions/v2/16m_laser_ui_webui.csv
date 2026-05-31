@@ -1,0 +1,10 @@
+# ESP-IDF Partition Table — 16MB, laser UI + CNC + WebUI LocalFS (1MB storage)
+# 基于 16m_laser_ui.csv：assets 缩小 1MB，末尾增加 FAT storage 分区。
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,    0x4000,
+otadata,  data, ota,     0xd000,    0x2000,
+phy_init, data, phy,     0xf000,    0x1000,
+ota_0,    app,  ota_0,   0x20000,   0x4A0000,
+ota_1,    app,  ota_1,   ,          0x4A0000,
+assets,   data, spiffs,  0x960000,  0x5A0000,
+storage,  data, fat,     0xF00000,  0x100000,

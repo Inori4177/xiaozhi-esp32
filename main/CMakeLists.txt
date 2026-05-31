@@ -862,6 +862,14 @@ if(CONFIG_MSP3525_LASER_UI)
         ${LASER_UI_MCP_SRCS} ${LASER_UI_IMG_SRCS})
 endif()
 
+if(CONFIG_XIAOZHI_WEBUI)
+    list(APPEND INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/webui
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi)
+    file(GLOB WEBUI_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/boards/webui/*.cc)
+    list(APPEND SOURCES ${WEBUI_SRCS})
+endif()
+
 # Select audio processor according to Kconfig
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
@@ -1015,6 +1023,14 @@ if(CONFIG_IDF_TARGET_ESP32S3)
 endif()
 
 set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_XIAOZHI_WEBUI)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA wear_levelling)
+    set(WEBUI_EMBED_TXTFILES
+        boards/webui/index.html
+        boards/webui/app.js
+        boards/webui/style.css
+        boards/webui/gcodegen.js)
+endif()
 if(CONFIG_BOARD_TYPE_ESP_VOCAT)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__touch_slider_sensor
@@ -1024,6 +1040,7 @@ endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_TXTFILES ${WEBUI_EMBED_TXTFILES}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
@@ -1056,6 +1073,7 @@ target_compile_definitions(${COMPONENT_LIB}
                     PRIVATE BOARD_TYPE=\"${BOARD_TYPE}\" BOARD_NAME=\"${BOARD_NAME}\"
                     PRIVATE BUILTIN_TEXT_FONT=${BUILTIN_TEXT_FONT} BUILTIN_ICON_FONT=${BUILTIN_ICON_FONT}
                     )
+
 
 # Add generation rules
 add_custom_command(

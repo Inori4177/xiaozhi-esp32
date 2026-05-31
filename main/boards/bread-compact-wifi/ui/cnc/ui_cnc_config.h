@@ -21,7 +21,7 @@
 #define UI_CNC_MOVE_TASK_PRIO     5
 
 /** CNC worker：G-code 解析 + 步进阻塞不可在 taskLVGL 内执行。 */
-#define UI_CNC_WORK_TASK_STACK    8192
+#define UI_CNC_WORK_TASK_STACK    6144
 #define UI_CNC_WORK_QUEUE_LEN     8
 #define UI_CNC_WORK_GCODE_MAX     512
 /** 运动/UI 后台任务固定 Core 0，Core 1 仅 taskLVGL */

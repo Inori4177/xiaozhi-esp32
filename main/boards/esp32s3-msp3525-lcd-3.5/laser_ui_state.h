@@ -2,6 +2,10 @@
 
 #include <lvgl.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     int material_index;
     int laser_power_pct;
@@ -23,3 +27,7 @@ void laser_ui_state_on_material_changed(lv_event_t *e);
 
 float laser_ui_state_get_jog_step_mm(void);
 laser_ui_settings_t laser_ui_state_get_settings(void);
+
+#ifdef __cplusplus
+}
+#endif

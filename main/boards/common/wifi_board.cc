@@ -20,6 +20,9 @@
 #ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
 #include "blufi.h"
 #endif
+#if CONFIG_XIAOZHI_WEBUI
+extern "C" void webui_service_start(void);
+#endif
 
 static const char *TAG = "WifiBoard";
 
@@ -114,6 +117,9 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
 #endif
             in_config_mode_ = false;
             ESP_LOGI(TAG, "Connected to WiFi: %s", data.c_str());
+#if CONFIG_XIAOZHI_WEBUI
+            webui_service_start();
+#endif
             break;
         case NetworkEvent::Scanning:
             ESP_LOGI(TAG, "WiFi scanning");

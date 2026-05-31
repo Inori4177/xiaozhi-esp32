@@ -991,6 +991,18 @@ config MSP3525_TOUCH_TEST
     help
         Show a simple LVGL button + coordinate overlay for FT6336 touch validation.
         Replaces the default xiaozhi chat UI on screen.
+
+config XIAOZHI_WEBUI
+    bool "Simplified FluidNC-style WebUI (HTTP + WebSocket)"
+    default y
+    depends on MSP3525_LASER_UI
+    help
+        Browser host on port 80: command log, jog, STA WiFi, LocalFS, image/text G-code.
+
+config XIAOZHI_WEBUI_HTTP_PORT
+    int "WebUI HTTP port"
+    default 80
+    depends on XIAOZHI_WEBUI
 endmenu
 
 endmenu

@@ -1,6 +1,12 @@
 # bread-compact-wifi 激光 UI + CNC 固件 >4MB，须用扩展 OTA 分区（勿用默认 16m.csv 的 0x3f0000）
 CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/16m_laser_ui.csv"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions/v2/16m_laser_ui_webui.csv"
+CONFIG_HTTPD_WS_SUPPORT=y
+CONFIG_XIAOZHI_WEBUI=y
+
+# WebUI LocalFS: allow names like image_engrave.gcode (FluidNC uses LFN too)
+CONFIG_FATFS_LFN_HEAP=y
+CONFIG_FATFS_MAX_LFN=255
 
 CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
 CONFIG_ESPTOOLPY_FLASHMODE_QIO=y

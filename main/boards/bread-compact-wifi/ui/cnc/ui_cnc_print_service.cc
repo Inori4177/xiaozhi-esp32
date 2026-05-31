@@ -11,9 +11,11 @@
 #include "stepping_engine.h"
 #include "motion_controller.h"
 
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <vector>
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -27,6 +29,7 @@ static float s_feed_mm_min = static_cast<float>(UI_CNC_FEED_BASE_MM_MIN);
 static volatile bool s_busy = false;
 static QueueHandle_t s_work_queue = nullptr;
 static TaskHandle_t s_worker_task = nullptr;
+static char s_job_name[64] = {};
 
 static volatile ui_cnc_work_state_t s_work_state = UI_CNC_WORK_IDLE;
 static volatile uint8_t s_progress_pct = 0;
@@ -46,6 +49,7 @@ typedef enum {
     CNC_WORK_JOG,
     CNC_WORK_HOME,
     CNC_WORK_LASER_OFF,
+    CNC_WORK_FILE,
 } cnc_work_id_t;
 
 typedef struct {
@@ -53,9 +57,22 @@ typedef struct {
     float x;
     float y;
     char gcode[UI_CNC_WORK_GCODE_MAX];
+    char file_path[128];
 } cnc_work_msg_t;
 
 static void cnc_worker_task(void *arg);
+
+static void set_job_name_from_path(const char *path)
+{
+    if (path == nullptr || path[0] == '\0') {
+        snprintf(s_job_name, sizeof(s_job_name), "G-code");
+        return;
+    }
+    const char *base = strrchr(path, '/');
+    base = (base != nullptr) ? base + 1 : path;
+    strncpy(s_job_name, base, sizeof(s_job_name) - 1);
+    s_job_name[sizeof(s_job_name) - 1] = '\0';
+}
 
 static void reset_job_status(void)
 {
@@ -319,11 +336,45 @@ static void execute_gcode_blocking(const char *gcode_text)
     if (gcode_text == nullptr || gcode_text[0] == '\0') {
         return;
     }
+    set_job_name_from_path("G-code");
 
     const auto commands = GCodeParser::Parse(std::string(gcode_text));
     ESP_LOGI(TAG, "Execute %d parsed commands", static_cast<int>(commands.size()));
     begin_tracked_job(commands, true);
     exec_parsed_commands(commands);
+}
+
+static void execute_gcode_file_blocking(const char *path)
+{
+    if (path == nullptr || path[0] == '\0') {
+        return;
+    }
+    set_job_name_from_path(path);
+    FILE *f = fopen(path, "rb");
+    if (f == nullptr) {
+        ESP_LOGE(TAG, "open failed: %s", path);
+        return;
+    }
+    std::string chunk;
+    chunk.reserve(4096);
+    char line[256];
+    std::vector<GCodeCommand> all_commands;
+    while (fgets(line, sizeof(line), f) != nullptr) {
+        chunk.append(line);
+        if (chunk.size() >= 3500) {
+            const auto part = GCodeParser::Parse(chunk);
+            all_commands.insert(all_commands.end(), part.begin(), part.end());
+            chunk.clear();
+        }
+    }
+    fclose(f);
+    if (!chunk.empty()) {
+        const auto part = GCodeParser::Parse(chunk);
+        all_commands.insert(all_commands.end(), part.begin(), part.end());
+    }
+    ESP_LOGI(TAG, "File %s -> %d commands", path, static_cast<int>(all_commands.size()));
+    begin_tracked_job(all_commands, true);
+    exec_parsed_commands(all_commands);
 }
 
 static bool ensure_worker_started(void)
@@ -425,11 +476,14 @@ static void cnc_worker_task(void *arg)
             refresh_elapsed_locked();
             ESP_LOGI(TAG, "pause: laser off");
             break;
+        case CNC_WORK_FILE:
+            execute_gcode_file_blocking(msg.file_path);
+            break;
         default:
             break;
         }
         s_busy = false;
-        if (msg.id == CNC_WORK_GCODE) {
+        if (msg.id == CNC_WORK_GCODE || msg.id == CNC_WORK_FILE) {
             s_work_state = UI_CNC_WORK_IDLE;
             s_progress_pct = 100;
             refresh_elapsed_locked();
@@ -441,14 +495,24 @@ static void cnc_worker_task(void *arg)
     }
 }
 
-void ui_cnc_print_service_execute_gcode(const char *gcode_text)
+bool ui_cnc_print_service_worker_ready(void)
 {
-    (void)post_gcode_async(gcode_text);
+    return s_worker_task != nullptr;
+}
+
+bool ui_cnc_print_service_execute_gcode(const char *gcode_text)
+{
+    return post_gcode_async(gcode_text);
 }
 
 bool ui_cnc_print_service_is_busy(void)
 {
     return s_busy;
+}
+
+const char *ui_cnc_print_service_get_job_name(void)
+{
+    return s_job_name[0] != '\0' ? s_job_name : "-";
 }
 
 void ui_cnc_print_service_get_status(ui_cnc_print_status_t *out)
@@ -497,21 +561,52 @@ void ui_cnc_print_service_notify_job_end(void)
     s_eta_sec = 0;
 }
 
-void ui_cnc_print_service_move_to_mm_async(float x_mm, float y_mm)
+bool ui_cnc_print_service_move_to_mm_async(float x_mm, float y_mm)
 {
     cnc_work_msg_t msg = {};
     msg.id = CNC_WORK_JOG;
     msg.x = x_mm;
     msg.y = y_mm;
     clamp_target_mm(&msg.x, &msg.y);
-    post_work(&msg);
+    return post_work(&msg);
 }
 
-void ui_cnc_print_service_home_async(void)
+bool ui_cnc_print_service_home_async(void)
 {
     cnc_work_msg_t msg = {};
     msg.id = CNC_WORK_HOME;
-    post_work(&msg);
+    return post_work(&msg);
+}
+
+bool ui_cnc_print_service_jog_axis_mm(char axis, bool positive, float step_mm)
+{
+    float x = 0.0f;
+    float y = 0.0f;
+    ui_cnc_motion_facade_get_position_mm(&x, &y);
+    const float d = positive ? step_mm : -step_mm;
+    if (axis == 'X' || axis == 'x') {
+        x += d;
+    } else {
+        y += d;
+    }
+    clamp_target_mm(&x, &y);
+    cnc_work_msg_t msg = {};
+    msg.id = CNC_WORK_JOG;
+    msg.x = x;
+    msg.y = y;
+    return post_work(&msg);
+}
+
+bool ui_cnc_print_service_execute_gcode_file(const char *vfs_path)
+{
+    if (vfs_path == nullptr || vfs_path[0] == '\0') {
+        return false;
+    }
+    cnc_work_msg_t msg = {};
+    msg.id = CNC_WORK_FILE;
+    strncpy(msg.file_path, vfs_path, sizeof(msg.file_path) - 1);
+    msg.file_path[sizeof(msg.file_path) - 1] = '\0';
+    return post_work(&msg);
 }
 
 static void jog_axis_async(char axis, bool positive)
@@ -617,5 +712,9 @@ void ui_cnc_print_service_init(void)
         return;
     }
 
-    ESP_LOGI(TAG, "CNC queue ready (worker starts on first move)");
+    if (!ensure_worker_started()) {
+        ESP_LOGW(TAG, "CNC queue ready but worker task not started (retry on first command)");
+    } else {
+        ESP_LOGI(TAG, "CNC queue and worker ready");
+    }
 }

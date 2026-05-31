@@ -30,13 +30,25 @@ typedef struct {
 void ui_cnc_print_service_init(void);
 
 /** 解析并执行 G-code（G0/G1/M3/M5/G1 F），不自动回原点。 */
-void ui_cnc_print_service_execute_gcode(const char *gcode_text);
+bool ui_cnc_print_service_execute_gcode(const char *gcode_text);
 
 /** 快速移动到绝对坐标 / 回零（入队 ui_cnc_worker，勿阻塞 LVGL）。 */
-void ui_cnc_print_service_move_to_mm_async(float x_mm, float y_mm);
-void ui_cnc_print_service_home_async(void);
+bool ui_cnc_print_service_move_to_mm_async(float x_mm, float y_mm);
+bool ui_cnc_print_service_home_async(void);
+
+/** WebUI / 外部点动：按绝对步长移动单轴（不拼 G-code 字符串）。 */
+bool ui_cnc_print_service_jog_axis_mm(char axis, bool positive, float step_mm);
+
+/** 从 VFS 路径读取 G-code 文件并在 worker 中执行。 */
+bool ui_cnc_print_service_execute_gcode_file(const char *vfs_path);
+
+/** CNC worker 任务是否已创建（入队命令前可检查）。 */
+bool ui_cnc_print_service_worker_ready(void);
 
 bool ui_cnc_print_service_is_busy(void);
+
+/** 当前/最近一次作业显示名（文件 basename 或 "G-code"）。 */
+const char *ui_cnc_print_service_get_job_name(void);
 
 void ui_cnc_print_service_get_status(ui_cnc_print_status_t *out);
 
