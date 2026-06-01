@@ -1,6 +1,6 @@
 #include "nt26_board.h"
 #include "display.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "audio_codec.h"
 #include <esp_log.h>
 #include <font_awesome.h>
@@ -123,7 +123,7 @@ void Nt26Board::StartNetwork() {
 }
 
 void Nt26Board::ScheduleAsyncStop() {
-    Application::GetInstance().Schedule([this]() {
+    AppRuntime::GetInstance().Schedule([this]() {
         if (modem_) {
             modem_->Stop();
         }

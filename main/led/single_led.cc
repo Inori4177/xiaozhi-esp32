@@ -1,5 +1,5 @@
 #include "single_led.h"
-#include "application.h"
+#include "app_runtime.h"
 #include <esp_log.h> 
 
 #define TAG "SingleLed"
@@ -121,7 +121,7 @@ void SingleLed::OnBlinkTimer() {
 
 
 void SingleLed::OnStateChanged() {
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     auto device_state = app.GetDeviceState();
     switch (device_state) {
         case kDeviceStateStarting:

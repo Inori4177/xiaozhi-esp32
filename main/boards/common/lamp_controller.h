@@ -1,7 +1,10 @@
 #ifndef __LAMP_CONTROLLER_H__
 #define __LAMP_CONTROLLER_H__
 
+#include <sdkconfig.h>
+#if !CONFIG_INTERACTION_UI_ONLY
 #include "mcp_server.h"
+#endif
 
 
 class LampController {
@@ -25,6 +28,7 @@ public:
         ESP_ERROR_CHECK(gpio_config(&config));
         gpio_set_level(gpio_num_, 0);
 
+#if !CONFIG_INTERACTION_UI_ONLY
         auto& mcp_server = McpServer::GetInstance();
         mcp_server.AddTool("self.lamp.get_state", "Get the power state of the lamp", PropertyList(), [this](const PropertyList& properties) -> ReturnValue {
             return power_ ? "{\"power\": true}" : "{\"power\": false}";
@@ -41,6 +45,7 @@ public:
             gpio_set_level(gpio_num_, 0);
             return true;
         });
+#endif
     }
 };
 

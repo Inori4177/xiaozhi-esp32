@@ -24,7 +24,7 @@ static const char *TAG = "webui_cnc";
 
 bool webui_cnc_available(void)
 {
-    return true;
+    return ui_cnc_print_service_worker_ready();
 }
 
 bool webui_cnc_worker_ready(void)

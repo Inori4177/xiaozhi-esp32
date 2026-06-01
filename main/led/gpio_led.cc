@@ -1,5 +1,5 @@
 #include "gpio_led.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "device_state.h"
 #include <esp_log.h>
 
@@ -205,7 +205,7 @@ bool IRAM_ATTR GpioLed::FadeCallback(const ledc_cb_param_t *param, void *user_ar
 }
 
 void GpioLed::OnStateChanged() {
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     auto device_state = app.GetDeviceState();
     switch (device_state) {
         case kDeviceStateStarting:

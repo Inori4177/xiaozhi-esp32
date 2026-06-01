@@ -256,6 +256,7 @@ function gcodegen_generateAndDownload() {
 }
 function gcodegen_uploadFallback(blob, filename) {
     var path = (typeof files_currentPath === "string" && files_currentPath.length) ? files_currentPath : "/";
+    if (!path.endsWith("/")) path += "/";
     var dest = path + filename;
     if (typeof files_upload_blob === "function") {
         return files_upload_blob(blob, dest);
@@ -275,11 +276,12 @@ function gcodegen_uploadFallback(blob, filename) {
 }
 async function gcodegen_uploadOnly() {
     try {
-        var res = gcodegen_last_blob ? { blob: gcodegen_last_blob, filename: gcodegen_last_filename } : gcodegen_generateBlob();
+        gcodegen_last_blob = null;
+        var res = gcodegen_generateBlob();
         if (!res) return;
         gcodegen_setStatus("Uploading...", false);
         await gcodegen_uploadFallback(res.blob, res.filename);
-        gcodegen_setStatus("Upload complete", false);
+        gcodegen_setStatus("Upload complete (" + res.blob.size + " B)", false);
         if (typeof files_refreshFiles === "function") files_refreshFiles(files_currentPath);
     } catch (err) {
         gcodegen_setStatus("Upload failed: " + err.message, true);

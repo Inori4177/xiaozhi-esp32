@@ -1,6 +1,5 @@
 /**
- * MSP3525 laser UI ↔ xiaozhi core integration.
- * Port this file + ui/ + config.json profile when moving to another board tree.
+ * MSP3525 laser UI integration (touch + WebUI interaction chip).
  */
 #include <sdkconfig.h>
 
@@ -13,7 +12,6 @@
 #include "lvgl_theme.h"
 
 #include "laser_ui_splash.h"
-#include "laser_ui_log.h"
 
 static void msp3525_on_display_init(Display *display)
 {
@@ -40,9 +38,8 @@ static void msp3525_on_activation_done(Display *display)
 
 static void msp3525_on_chat_message(const char *role, const char *content)
 {
-    if (content != nullptr && content[0] != '\0') {
-        laser_ui_log_append(role, content);
-    }
+    (void)role;
+    (void)content;
 }
 
 static void msp3525_on_chrome_visible(Display *display, bool top_bottom_visible, bool center_visible)

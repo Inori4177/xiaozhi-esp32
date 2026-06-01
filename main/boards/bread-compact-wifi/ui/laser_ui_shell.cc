@@ -4,7 +4,6 @@
 #include "pages/page_print.h"
 #include "pages/page_settings.h"
 #include "pages/page_pick.h"
-#include "pages/page_xiaozhi.h"
 
 #include <font_awesome.h>
 
@@ -314,7 +313,6 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
     shell->pages[static_cast<int>(LaserPage::Print)] = page_print_create(shell->content_host);
     shell->pages[static_cast<int>(LaserPage::Settings)] = page_settings_create(shell->content_host);
     shell->pages[static_cast<int>(LaserPage::Pick)] = page_pick_create(shell->content_host);
-    shell->pages[static_cast<int>(LaserPage::Xiaozhi)] = page_xiaozhi_create(shell->content_host);
 
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {
         if (shell->pages[i] != nullptr) {
@@ -341,7 +339,6 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
         {LV_SYMBOL_PLAY},
         {LV_SYMBOL_SETTINGS},
         {LV_SYMBOL_EDIT},
-        {FONT_AWESOME_MICROCHIP_AI},
     };
 
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {

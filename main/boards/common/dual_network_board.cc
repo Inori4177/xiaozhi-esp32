@@ -1,5 +1,5 @@
 #include "dual_network_board.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "display.h"
 #include "assets/lang_config.h"
 #include "settings.h"
@@ -52,7 +52,7 @@ void DualNetworkBoard::SwitchNetworkType() {
         display->ShowNotification(Lang::Strings::SWITCH_TO_WIFI_NETWORK);
     }
     vTaskDelay(pdMS_TO_TICKS(1000));
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     app.Reboot();
 }
 

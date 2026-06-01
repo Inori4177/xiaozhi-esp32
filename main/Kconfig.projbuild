@@ -974,15 +974,35 @@ endmenu
 menu "MSP3525 3.5 inch Board"
     depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || BOARD_TYPE_ESP32S3_1_81TFT_LCD_TEST || BOARD_TYPE_BREAD_COMPACT_WIFI
 
+config INTERACTION_UI_ONLY
+    bool "Interaction UI only (touch + WebUI, no voice/CNC hardware)"
+    default y if BOARD_TYPE_BREAD_COMPACT_WIFI
+    default n
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI
+    help
+        Slim firmware for the interaction ESP32-S3: LVGL touch UI and browser WebUI only.
+        Voice assistant and local stepper CNC are expected on a second chip.
+
 config MSP3525_LASER_UI
-    bool "Laser engraver UI framework (cyber splash + 4-page shell)"
+    bool "Laser engraver UI framework (cyber splash + 3-page shell)"
     default y if BOARD_TYPE_BREAD_COMPACT_WIFI
     default n
     depends on BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5 || BOARD_TYPE_BREAD_COMPACT_WIFI
     help
         Modular LVGL UI for laser engraver on MSP3525 3.5 inch display.
-        Cyber startup splash, 4-page navigation shell, xiaozhi log integration.
-        Business events are stubbed for future laser controller integration.
+        Cyber startup splash, Print/Settings/Pick navigation shell.
+
+config INTERACTION_PEER_UART
+    bool "UART link to motion/voice ESP32-S3"
+    default y
+    depends on INTERACTION_UI_ONLY && MSP3525_LASER_UI
+    help
+        Forward CNC commands over UART (NDJSON). Motion chip must implement peer protocol.
+
+config INTERACTION_PEER_UART_BAUD
+    int "Peer UART baud rate"
+    default 115200
+    depends on INTERACTION_PEER_UART
 
 config MSP3525_TOUCH_TEST
     bool "Touch button test UI (skip chat UI)"
@@ -993,7 +1013,7 @@ config MSP3525_TOUCH_TEST
         Replaces the default xiaozhi chat UI on screen.
 
 config XIAOZHI_WEBUI
-    bool "Simplified FluidNC-style WebUI (HTTP + WebSocket)"
+    bool "FluidNC-style WebUI (HTTP + WebSocket)"
     default y
     depends on MSP3525_LASER_UI
     help

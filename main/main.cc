@@ -7,7 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-#include "application.h"
+#include "app_runtime.h"
 
 #define TAG "main"
 
@@ -23,7 +23,7 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(ret);
 
     // Initialize and run the application
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     app.Initialize();
     app.Run();  // This function runs the main event loop and never returns
 }

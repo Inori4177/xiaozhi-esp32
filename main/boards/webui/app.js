@@ -4,8 +4,6 @@ var ws_source = null;
 var websocket_started = false;
 var files_currentPath = "/";
 var status_timer = null;
-var xiaozhi_timer = null;
-var xiaozhi_tab_active = false;
 
 function $(id) { return document.getElementById(id); }
 
@@ -75,22 +73,6 @@ function show_tab(name) {
     if (name === "jog" && typeof pick_refresh_layout === "function") {
         requestAnimationFrame(pick_refresh_layout);
     }
-    xiaozhi_tab_active = (name === "xiaozhi");
-    if (xiaozhi_tab_active) {
-        poll_xiaozhi_log();
-    }
-}
-
-function poll_xiaozhi_log() {
-    fetch("/chat")
-        .then(function (r) { return r.text(); })
-        .then(function (t) {
-            var el = $("xiaozhi_log");
-            if (!el) return;
-            el.textContent = t || "暂无对话记录";
-            el.scrollTop = el.scrollHeight;
-        })
-        .catch(function () {});
 }
 
 function http_command(cmd, onok) {
@@ -169,13 +151,8 @@ function InitUI() {
             set_conn_status("就绪", true);
             files_refreshFiles("/");
             poll_status();
-            poll_xiaozhi_log();
             if (status_timer) clearInterval(status_timer);
             status_timer = setInterval(poll_status, 800);
-            if (xiaozhi_timer) clearInterval(xiaozhi_timer);
-            xiaozhi_timer = setInterval(function () {
-                if (xiaozhi_tab_active) poll_xiaozhi_log();
-            }, 1500);
         })
         .catch(function (e) {
             set_conn_status("初始化失败", false);
@@ -252,7 +229,9 @@ function files_upload_blob(blob, destPath) {
 function files_upload_selected() {
     var input = $("files_input_file");
     if (!input || !input.files || !input.files.length) return;
-    var dest = files_currentPath + input.files[0].name;
+    var path = files_currentPath || "/";
+    if (!path.endsWith("/")) path += "/";
+    var dest = path + input.files[0].name;
     files_upload_blob(input.files[0], dest)
         .then(files_dispatch)
         .catch(function (e) { $("files_status").textContent = e.message; });

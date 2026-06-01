@@ -7,7 +7,7 @@
 
 #include "lvgl_display.h"
 #include "board.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "audio_codec.h"
 #include "settings.h"
 #include "assets/lang_config.h"
@@ -116,7 +116,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
         return;
     }
 
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     auto& board = Board::GetInstance();
     auto codec = board.GetAudioCodec();
 
@@ -202,7 +202,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
     static int seconds_counter = 0;
     if (update_all || seconds_counter++ % 10 == 0) {
         // Don't read 4G network status during firmware upgrade to avoid occupying UART resources
-        auto device_state = Application::GetInstance().GetDeviceState();
+        auto device_state = AppRuntime::GetInstance().GetDeviceState();
         static const std::vector<DeviceState> allowed_states = {
             kDeviceStateIdle,
             kDeviceStateStarting,

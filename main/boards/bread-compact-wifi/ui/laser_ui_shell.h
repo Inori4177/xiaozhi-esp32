@@ -6,7 +6,6 @@ enum class LaserPage {
     Print = 0,
     Settings,
     Pick,
-    Xiaozhi,
     Count,
 };
 
@@ -14,8 +13,8 @@ struct LaserUiShell {
     lv_obj_t *root = nullptr;
     lv_obj_t *content_host = nullptr;
     lv_obj_t *nav_dock = nullptr;
-    lv_obj_t *nav_btns[4] = {};
-    lv_obj_t *pages[4] = {};
+    lv_obj_t *nav_btns[3] = {};
+    lv_obj_t *pages[3] = {};
     LaserPage current = LaserPage::Print;
     bool page_open = false;
     int nav_drag_origin_x = 0;

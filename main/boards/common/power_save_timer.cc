@@ -1,5 +1,5 @@
 #include "power_save_timer.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "settings.h"
 
 #include <esp_log.h>
@@ -60,7 +60,7 @@ void PowerSaveTimer::OnShutdownRequest(std::function<void()> callback) {
 }
 
 void PowerSaveTimer::PowerSaveCheck() {
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     if (!in_sleep_mode_ && !app.CanEnterSleepMode()) {
         ticks_ = 0;
         return;
@@ -118,7 +118,7 @@ void PowerSaveTimer::WakeUp() {
             esp_pm_configure(&pm_config);
 
             // Enable wake word detection
-            auto& app = Application::GetInstance();
+            auto& app = AppRuntime::GetInstance();
             auto& audio_service = app.GetAudioService();
             if (is_wake_word_running_) {
                 audio_service.EnableWakeWordDetection(true);

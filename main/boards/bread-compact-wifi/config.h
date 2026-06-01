@@ -6,10 +6,12 @@
 
 /* Bread Compact WiFi + MSP3525 3.5" ST7796 + FT6336
  *
- * 固定（语音 I2S + CNC，勿与屏/触摸复用）：
- *   I2S: MIC WS/SCK/DIN=4/5/6, SPK DOUT/BCLK/LRCK=7/15/16
- *   CNC: X STEP/DIR=13/12, Y STEP/DIR=10/11, EN=9, LASER PWM/UART=17
- *   LAMP=18
+ * 交互 S3（本固件）：屏 + 触摸 + WebUI；通过 UART 连接运动/语音 S3。
+ * 运动 S3：I2S 语音 + CNC 步进（GPIO 9/10/11/12/13/17 等）。
+ *
+ * 双机 UART（交叉连接，共 GND）：
+ *   交互 TX GPIO17 -> 运动 RX
+ *   交互 RX GPIO9  <- 运动 TX
  *
  * 屏幕 SPI 仅用普通 GPIO（乐鑫 P2，避开 USB-JTAG/JTAG/UART0/PSRAM）：
  *   MOSI=38, MISO=3, SCK=14, CS=1, DC=2, RST=21, BL=8
@@ -96,22 +98,21 @@
 #define TOUCH_RST_PIN           GPIO_NUM_41
 #define TOUCH_INT_PIN           GPIO_NUM_42
 #define TOUCH_USE_INTERRUPT     1
-#define TOUCH_G_MODE_TRIGGER    1
+#define TOUCH_G_MODE_TRIGGER    0
 #define TOUCH_RAW_X_MIN         0
 #define TOUCH_RAW_X_MAX         320
 #define TOUCH_RAW_Y_MIN         0
 #define TOUCH_RAW_Y_MAX         480
-#define TOUCH_THGROUP           0x02
-#define TOUCH_PERIODACTIVE      1
+#define TOUCH_THGROUP           0x20
+#define TOUCH_PERIODACTIVE      12
 #define TOUCH_MAP_MARGIN        24
 #define TOUCH_INVERT_X          false
 #define TOUCH_INVERT_Y          false
 
-/* Laser / GRBL serial */
-#define LASER_UART_NUM          UART_NUM_1
-#define LASER_UART_TX_PIN       GPIO_NUM_17
-#define LASER_UART_RX_PIN       GPIO_NUM_NC
-#define LASER_UART_BAUD_RATE    115200
+/* UART link to motion/voice ESP32-S3 (NDJSON, see peer_link/peer_cnc_client.h) */
+#define PEER_UART_NUM           UART_NUM_1
+#define PEER_UART_TX_PIN        GPIO_NUM_17
+#define PEER_UART_RX_PIN        GPIO_NUM_9
 
 // A MCP Test: Control a lamp
 #define LAMP_GPIO GPIO_NUM_18

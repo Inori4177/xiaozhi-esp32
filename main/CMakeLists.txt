@@ -39,6 +39,10 @@ set(SOURCES "audio/audio_codec.cc"
             "main.cc"
             )
 
+if(CONFIG_INTERACTION_UI_ONLY)
+    list(APPEND SOURCES "interaction_app.cc")
+endif()
+
 set(INCLUDE_DIRS "." "display" "display/lvgl_display" "display/lvgl_display/jpg" "audio" "audio/demuxer" "protocols")
 
 # Add board common files
@@ -63,8 +67,10 @@ list(APPEND SOURCES
     "boards/common/system_reset.cc"
 )
 list(APPEND INCLUDE_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/common
-    ${CMAKE_CURRENT_SOURCE_DIR}/boards/CNC)
+    ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
+if(NOT CONFIG_INTERACTION_UI_ONLY)
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/CNC)
+endif()
 
 
 idf_build_get_property(build_components BUILD_COMPONENTS)
@@ -854,12 +860,24 @@ if(CONFIG_MSP3525_LASER_UI)
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/cnc/*.cc)
     file(GLOB LASER_UI_PICK_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/pick/*.cc)
-    file(GLOB LASER_UI_MCP_SRCS
-        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/mcp/*.cc)
+    if(NOT CONFIG_INTERACTION_UI_ONLY)
+        file(GLOB LASER_UI_MCP_SRCS
+            ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/mcp/*.cc)
+    endif()
     file(GLOB LASER_UI_IMG_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/assets/images/*.c)
     list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_CNC_SRCS} ${LASER_UI_PICK_SRCS}
-        ${LASER_UI_MCP_SRCS} ${LASER_UI_IMG_SRCS})
+        ${LASER_UI_IMG_SRCS})
+    if(LASER_UI_MCP_SRCS)
+        list(APPEND SOURCES ${LASER_UI_MCP_SRCS})
+    endif()
+    if(CONFIG_INTERACTION_PEER_UART)
+        list(APPEND INCLUDE_DIRS
+            ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/peer_link)
+        file(GLOB PEER_LINK_SRCS
+            ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/peer_link/*.cc)
+        list(APPEND SOURCES ${PEER_LINK_SRCS})
+    endif()
 endif()
 
 if(CONFIG_XIAOZHI_WEBUI)
@@ -871,6 +889,7 @@ if(CONFIG_XIAOZHI_WEBUI)
 endif()
 
 # Select audio processor according to Kconfig
+if(NOT CONFIG_INTERACTION_UI_ONLY)
 if(CONFIG_USE_AUDIO_PROCESSOR)
     list(APPEND SOURCES "audio/processors/afe_audio_processor.cc")
 else()
@@ -881,6 +900,7 @@ if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
 else()
     list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
+endif()
 endif()
 
 # Auto Select Additional Sources
@@ -996,6 +1016,11 @@ endif()
 
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.ogg)
 
+if(CONFIG_INTERACTION_UI_ONLY)
+    set(LANG_SOUNDS "")
+    set(COMMON_SOUNDS "")
+endif()
+
 # If target chip is ESP32, exclude specific files to avoid build errors
 if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
@@ -1011,18 +1036,21 @@ if(CONFIG_IDF_TARGET_ESP32)
 endif()
 
 # Include EspVideo if target is ESP32S3 or ESP32P4
-if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
-    list(APPEND SOURCES "boards/common/esp_video.cc"
-                        "boards/common/rndis_board.cc"
-                        )
-endif()
-
-# Include Esp32Camera if target is ESP32S3
-if(CONFIG_IDF_TARGET_ESP32S3)
-    list(APPEND SOURCES "boards/common/esp32_camera.cc")
+if(NOT CONFIG_INTERACTION_UI_ONLY)
+    if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
+        list(APPEND SOURCES "boards/common/esp_video.cc"
+                            "boards/common/rndis_board.cc"
+                            )
+    endif()
+    if(CONFIG_IDF_TARGET_ESP32S3)
+        list(APPEND SOURCES "boards/common/esp32_camera.cc")
+    endif()
 endif()
 
 set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_INTERACTION_PEER_UART)
+    list(APPEND MAIN_PRIV_REQUIRES_EXTRA json)
+endif()
 if(CONFIG_XIAOZHI_WEBUI)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA wear_levelling)
     set(WEBUI_EMBED_TXTFILES
@@ -1035,6 +1063,38 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA
         espressif__touch_slider_sensor
         espressif__touch_button_sensor
+    )
+endif()
+
+if(CONFIG_INTERACTION_UI_ONLY)
+    list(REMOVE_ITEM SOURCES
+        "audio/audio_service.cc"
+        "audio/demuxer/ogg_demuxer.cc"
+        "audio/codecs/no_audio_codec.cc"
+        "audio/codecs/box_audio_codec.cc"
+        "audio/codecs/es8311_audio_codec.cc"
+        "audio/codecs/es8374_audio_codec.cc"
+        "audio/codecs/es8388_audio_codec.cc"
+        "audio/codecs/es8389_audio_codec.cc"
+        "audio/processors/audio_debugger.cc"
+        "protocols/protocol.cc"
+        "protocols/mqtt_protocol.cc"
+        "protocols/websocket_protocol.cc"
+        "mcp_server.cc"
+        "application.cc"
+        "ota.cc"
+        "assets.cc"
+        "device_state_machine.cc"
+        "boards/common/press_to_talk_mcp_tool.cc"
+        "boards/common/afsk_demod.cc"
+        "boards/common/esp_video.cc"
+        "boards/common/rndis_board.cc"
+        "boards/common/esp32_camera.cc"
+        "boards/common/dual_network_board.cc"
+        "boards/common/nt26_board.cc"
+        "boards/common/ml307_board.cc"
+        "boards/common/power_save_timer.cc"
+        "boards/common/sleep_timer.cc"
     )
 endif()
 

@@ -108,15 +108,20 @@ static esp_err_t files_delete(const char *web_path, const char *filename, httpd_
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "no filename");
         return ESP_FAIL;
     }
+    if (!rel.empty() && rel.back() != '/') {
+        rel += '/';
+    }
     rel += filename;
     if (!webui_vfs_resolve_path(rel.c_str(), vfs_path, sizeof(vfs_path))) {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad path");
         return ESP_FAIL;
     }
     if (remove(vfs_path) != 0) {
+        ESP_LOGE(TAG, "remove failed: %s errno=%d", vfs_path, errno);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "delete failed");
         return ESP_FAIL;
     }
+    ESP_LOGI(TAG, "deleted %s", vfs_path);
     return files_list_json(web_path, req);
 }
 
@@ -167,6 +172,7 @@ static esp_err_t files_upload_raw(httpd_req_t *req, const char *web_path)
         httpd_resp_send_err(req, HTTPD_413_CONTENT_TOO_LARGE, "gcode too large (max 120KB)");
         return ESP_FAIL;
     }
+    remove(vfs_path);
     FILE *f = fopen(vfs_path, "wb");
     if (f == nullptr) {
         ESP_LOGE(TAG, "fopen(%s) failed errno=%d (%s)", vfs_path, errno, strerror(errno));
@@ -262,6 +268,7 @@ static esp_err_t files_upload_multipart(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad dest");
         return ESP_FAIL;
     }
+    remove(vfs_path);
     FILE *f = fopen(vfs_path, "wb");
     if (f == nullptr) {
         ESP_LOGE(TAG, "fopen(%s) failed errno=%d (%s)", vfs_path, errno, strerror(errno));

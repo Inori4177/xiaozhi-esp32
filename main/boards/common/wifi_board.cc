@@ -1,7 +1,8 @@
 #include "wifi_board.h"
 
 #include "display.h"
-#include "application.h"
+#include "app_runtime.h"
+#include "audio_codec.h"
 #include "system_info.h"
 #include "settings.h"
 #include "assets/lang_config.h"
@@ -16,7 +17,9 @@
 #include <wifi_manager.h>
 #include <wifi_station.h>
 #include <ssid_manager.h>
+#if !CONFIG_INTERACTION_UI_ONLY
 #include "afsk_demod.h"
+#endif
 #ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
 #include "blufi.h"
 #endif
@@ -57,7 +60,7 @@ void WifiBoard::StartNetwork() {
 
     // Initialize WiFi manager
     WifiManagerConfig config;
-    config.ssid_prefix = "Xiaozhi";
+    config.ssid_prefix = "LaserUI";
     config.language = Lang::CODE;
     wifi_manager.Initialize(config);
 
@@ -165,27 +168,31 @@ void WifiBoard::OnWifiConnectTimeout(void* arg) {
 void WifiBoard::StartWifiConfigMode() {
     in_config_mode_ = true;
     // Transition to wifi configuring state
-    Application::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
+    AppRuntime::GetInstance().SetDeviceState(kDeviceStateWifiConfiguring);
 #ifdef CONFIG_USE_HOTSPOT_WIFI_PROVISIONING
     auto& wifi_manager = WifiManager::GetInstance();
 
     wifi_manager.StartConfigAp();
 
     // Show config prompt after a short delay
-    Application::GetInstance().Schedule([&wifi_manager]() {
+    AppRuntime::GetInstance().Schedule([&wifi_manager]() {
         std::string hint = Lang::Strings::CONNECT_TO_HOTSPOT;
         hint += wifi_manager.GetApSsid();
         hint += Lang::Strings::ACCESS_VIA_BROWSER;
         hint += wifi_manager.GetApWebUrl();
 
-        Application::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+#if !CONFIG_INTERACTION_UI_ONLY
+        AppRuntime::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear", Lang::Sounds::OGG_WIFICONFIG);
+#else
+        AppRuntime::GetInstance().Alert(Lang::Strings::WIFI_CONFIG_MODE, hint.c_str(), "gear");
+#endif
     });
 #elif CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
     auto &blufi = Blufi::GetInstance();
     // initialize esp-blufi protocol
     blufi.init();
 #endif
-#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING
+#if CONFIG_USE_ACOUSTIC_WIFI_PROVISIONING && !CONFIG_INTERACTION_UI_ONLY
     // Start acoustic provisioning task
     auto codec = Board::GetInstance().GetAudioCodec();
     int channel = codec ? codec->input_channels() : 1;
@@ -206,30 +213,24 @@ void WifiBoard::EnterWifiConfigMode() {
     ESP_LOGI(TAG, "EnterWifiConfigMode called");
     GetDisplay()->ShowNotification(Lang::Strings::ENTERING_WIFI_CONFIG_MODE);
 
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     auto state = app.GetDeviceState();
 
+#if !CONFIG_INTERACTION_UI_ONLY
     if (state == kDeviceStateSpeaking || state == kDeviceStateListening || state == kDeviceStateIdle) {
-        // Reset protocol (close audio channel, reset protocol)
-        Application::GetInstance().ResetProtocol();
+        AppRuntime::GetInstance().ResetProtocol();
 
         xTaskCreate([](void* arg) {
             auto* board = static_cast<WifiBoard*>(arg);
-
-            // Wait for 1 second to allow speaking to finish gracefully
             vTaskDelay(pdMS_TO_TICKS(1000));
-
-            // Stop any ongoing connection attempt
             esp_timer_stop(board->connect_timer_);
             WifiManager::GetInstance().StopStation();
-
-            // Enter config mode
             board->StartWifiConfigMode();
-
             vTaskDelete(NULL);
         }, "wifi_cfg_delay", 4096, this, 2, NULL);
         return;
     }
+#endif
 
     if (state != kDeviceStateStarting) {
         ESP_LOGE(TAG, "EnterWifiConfigMode called but device state is not starting or speaking, device state: %d", state);

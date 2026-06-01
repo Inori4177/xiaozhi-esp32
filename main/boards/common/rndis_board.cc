@@ -1,6 +1,6 @@
 #include "rndis_board.h"
 #include "display.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "system_info.h"
 #include "settings.h"
 #include "assets/lang_config.h"

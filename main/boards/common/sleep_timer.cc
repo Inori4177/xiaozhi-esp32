@@ -1,5 +1,5 @@
 #include "sleep_timer.h"
-#include "application.h"
+#include "app_runtime.h"
 #include "board.h"
 #include "display.h"
 #include "settings.h"
@@ -64,7 +64,7 @@ void SleepTimer::OnEnterDeepSleepMode(std::function<void()> callback) {
 }
 
 void SleepTimer::CheckTimer() {
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     if (!app.CanEnterSleepMode()) {
         ticks_ = 0;
         return;

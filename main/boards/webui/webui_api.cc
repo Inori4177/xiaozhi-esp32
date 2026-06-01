@@ -14,7 +14,6 @@ extern "C" {
 #include "laser_ui_state.h"
 #include "ui/cnc/ui_cnc_config.h"
 }
-#include "ui/laser_ui_log.h"
 #endif
 
 static const char *TAG = "webui_api";
@@ -264,20 +263,11 @@ extern "C" esp_err_t webui_pause_handler(httpd_req_t *req)
 
 extern "C" esp_err_t webui_chat_handler(httpd_req_t *req)
 {
-#if !CONFIG_MSP3525_LASER_UI
-    httpd_resp_send_err(req, HTTPD_503_SERVICE_UNAVAILABLE, "CNC UI disabled");
-    return ESP_FAIL;
-#else
     if (req->method != HTTP_GET) {
         httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "GET only");
         return ESP_FAIL;
     }
-    const char *text = laser_ui_log_get_text();
-    if (text == nullptr || text[0] == '\0') {
-        text = "暂无对话记录";
-    }
     httpd_resp_set_type(req, "text/plain; charset=utf-8");
-    httpd_resp_sendstr(req, text);
+    httpd_resp_sendstr(req, "语音助手已移至独立 ESP32-S3，本机仅提供触摸屏与 WebUI。");
     return ESP_OK;
-#endif
 }

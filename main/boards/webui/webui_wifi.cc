@@ -73,7 +73,7 @@ static void handle_sta_connect(const char *payload, char *out, size_t out_size)
     auto &wifi = WifiManager::GetInstance();
     if (!wifi.IsInitialized()) {
         WifiManagerConfig cfg = {};
-        cfg.ssid_prefix = "Xiaozhi";
+        cfg.ssid_prefix = "LaserUI";
         wifi.Initialize(cfg);
     }
     wifi.StopStation();

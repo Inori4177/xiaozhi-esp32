@@ -1,5 +1,5 @@
 #include "circular_strip.h"
-#include "application.h"
+#include "app_runtime.h"
 #include <esp_log.h>
 #include <algorithm>
 
@@ -195,7 +195,7 @@ void CircularStrip::SetBrightness(uint8_t default_brightness, uint8_t low_bright
 }
 
 void CircularStrip::OnStateChanged() {
-    auto& app = Application::GetInstance();
+    auto& app = AppRuntime::GetInstance();
     auto device_state = app.GetDeviceState();
     switch (device_state) {
         case kDeviceStateStarting: {

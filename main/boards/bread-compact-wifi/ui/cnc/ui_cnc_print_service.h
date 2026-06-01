@@ -52,6 +52,8 @@ const char *ui_cnc_print_service_get_job_name(void);
 
 void ui_cnc_print_service_get_status(ui_cnc_print_status_t *out);
 
+void ui_cnc_print_service_get_position_mm(float *x_mm, float *y_mm);
+
 /** MotionController / 雕刻任务：作业开始前预扫描 G-code 估算进度。 */
 void ui_cnc_print_service_notify_job_begin(const char *gcode_text);
 

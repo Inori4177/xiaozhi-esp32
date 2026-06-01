@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Xiaozhi CNC WebUI</title>
+  <title>Laser Interaction WebUI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet">
@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <h1>Xiaozhi CNC</h1>
+      <h1>Laser UI</h1>
       <span id="conn_status" class="conn-pill">Connecting...</span>
     </div>
   </header>
@@ -49,7 +49,6 @@
     <button type="button" data-tab="files">LocalFS</button>
     <button type="button" data-tab="gcodegen">图/文 G-code</button>
     <button type="button" data-tab="settings">设置</button>
-    <button type="button" data-tab="xiaozhi">小智</button>
   </nav>
 
   <main class="panels">
@@ -196,11 +195,6 @@
 
       <button type="button" class="ctrl primary" id="settings_apply_btn">应用设置到下位机</button>
       <div id="settings_status" class="hint"></div>
-    </section>
-
-    <section id="panel_xiaozhi" class="panel">
-      <p class="hint">与屏幕「小智」页相同的语音对话记录（轮询刷新）。</p>
-      <pre id="xiaozhi_log" class="scroll-box xiaozhi-log">加载中…</pre>
     </section>
   </main>
 
