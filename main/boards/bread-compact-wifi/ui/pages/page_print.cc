@@ -179,11 +179,21 @@ static void create_pos_column(lv_obj_t *parent, lv_obj_t **out_x_lbl, lv_obj_t *
     lv_label_set_text(x_lbl, "X:0.0");
     lv_obj_set_width(x_lbl, POS_COL_W);
     style_print_text_row(x_lbl, UI_COLOR_STATUS_TITLE, print_value_row_h());
+    lv_obj_set_style_bg_color(x_lbl, lv_color_hex(0x121A28), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(x_lbl, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(x_lbl, 4, LV_PART_MAIN);
+    lv_obj_set_style_border_width(x_lbl, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(x_lbl, UI_COLOR_BORDER, LV_PART_MAIN);
 
     lv_obj_t *y_lbl = lv_label_create(col);
     lv_label_set_text(y_lbl, "Y:0.0");
     lv_obj_set_width(y_lbl, POS_COL_W);
     style_print_text_row(y_lbl, UI_COLOR_STATUS_TITLE, print_value_row_h());
+    lv_obj_set_style_bg_color(y_lbl, lv_color_hex(0x121A28), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(y_lbl, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(y_lbl, 4, LV_PART_MAIN);
+    lv_obj_set_style_border_width(y_lbl, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(y_lbl, UI_COLOR_BORDER, LV_PART_MAIN);
 
     if (out_x_lbl != nullptr) {
         *out_x_lbl = x_lbl;
@@ -291,6 +301,7 @@ static lv_obj_t *create_step_block(lv_obj_t *parent, int x, int y, int block_h,
     lv_obj_set_size(slider, STEP_SLIDER_W, slider_h > 28 ? slider_h : 28);
     lv_slider_set_range(slider, 0, 4);
     lv_slider_set_value(slider, 0, LV_ANIM_OFF);
+    laser_ui_style_energy_slider(slider, UI_COLOR_ACCENT);
 #ifdef LV_SLIDER_ORIENTATION_VERTICAL
     lv_slider_set_orientation(slider, LV_SLIDER_ORIENTATION_VERTICAL);
 #endif
@@ -304,6 +315,11 @@ static lv_obj_t *create_step_block(lv_obj_t *parent, int x, int y, int block_h,
     lv_obj_align(val, LV_ALIGN_BOTTOM_MID, 0, 0);
     style_print_text_row(val, UI_COLOR_ACCENT, val_h);
     lv_obj_set_style_text_align(val, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(val, lv_color_hex(0x121A28), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(val, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(val, 4, LV_PART_MAIN);
+    lv_obj_set_style_border_width(val, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(val, UI_COLOR_BORDER, LV_PART_MAIN);
 
     if (out_val_lbl != nullptr) {
         *out_val_lbl = val;
@@ -330,12 +346,22 @@ static lv_obj_t *create_ctrl_column(lv_obj_t *parent, int x, int y)
     lv_obj_t *run = laser_ui_create_button(col, "运行", UI_COLOR_RUN, lv_color_hex(0x388E3C));
     lv_obj_set_size(run, PRINT_CTRL_BTN_W, PRINT_CTRL_BTN_H);
     lv_obj_set_ext_click_area(run, 0);
+    lv_obj_set_style_border_width(run, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(run, lv_color_hex(0x86EFAC), LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(run, 4, LV_PART_MAIN);
+    lv_obj_set_style_shadow_color(run, UI_COLOR_RUN, LV_PART_MAIN);
+    lv_obj_set_style_shadow_opa(run, LV_OPA_30, LV_PART_MAIN);
     lv_obj_add_event_cb(run, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_RUN)));
 
     lv_obj_t *pause = laser_ui_create_button(col, "暂停", UI_COLOR_PAUSE, lv_color_hex(0xE65100));
     lv_obj_set_size(pause, PRINT_CTRL_BTN_W, PRINT_CTRL_BTN_H);
     lv_obj_set_ext_click_area(pause, 0);
+    lv_obj_set_style_border_width(pause, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(pause, lv_color_hex(0xFCD34D), LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(pause, 4, LV_PART_MAIN);
+    lv_obj_set_style_shadow_color(pause, UI_COLOR_PAUSE, LV_PART_MAIN);
+    lv_obj_set_style_shadow_opa(pause, LV_OPA_30, LV_PART_MAIN);
     lv_obj_add_event_cb(pause, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PAUSE)));
 
@@ -426,12 +452,12 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_style_pad_row(page, 6, LV_PART_MAIN);
     lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *status = lv_obj_create(page);
+    lv_obj_t *status = laser_ui_create_hud_panel(page, UI_COLOR_STATUS_BG, PRINT_STATUS_PAD);
     lv_obj_set_size(status, LV_PCT(100), PRINT_STATUS_H);
-    laser_ui_apply_panel_style(status, UI_COLOR_STATUS_BG, PRINT_STATUS_PAD);
     lv_obj_set_style_border_color(status, UI_COLOR_STATUS_BORDER, LV_PART_MAIN);
     lv_obj_set_style_border_width(status, 1, LV_PART_MAIN);
     lv_obj_remove_flag(status, LV_OBJ_FLAG_SCROLLABLE);
+    laser_ui_add_panel_scanline(status, UI_COLOR_ACCENT_DIM);
 
     lv_obj_t *row_meta = lv_obj_create(status);
     style_status_row(row_meta, STATUS_ROW_META_H);
@@ -485,10 +511,7 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     lv_obj_set_style_pad_ver(bar, 0, LV_PART_MAIN);
     lv_bar_set_range(bar, 0, 100);
     lv_bar_set_value(bar, 0, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(bar, lv_color_hex(0x2A3540), LV_PART_MAIN);
-    lv_obj_set_style_bg_color(bar, UI_COLOR_STATUS_VALUE, LV_PART_INDICATOR);
-    lv_obj_set_style_radius(bar, 3, LV_PART_MAIN);
-    lv_obj_set_style_radius(bar, 3, LV_PART_INDICATOR);
+    laser_ui_style_status_bar(bar, UI_COLOR_STATUS_VALUE);
     g_status_bar = bar;
 
     lv_obj_t *pct = lv_label_create(row_prog);

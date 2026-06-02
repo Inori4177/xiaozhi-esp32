@@ -47,12 +47,12 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_flex_flow(page, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(page, 8, LV_PART_MAIN);
 
-    lv_obj_t *panel = lv_obj_create(page);
+    lv_obj_t *panel = laser_ui_create_hud_panel(page, lv_color_hex(0x101724), 10);
     lv_obj_set_width(panel, LV_PCT(100));
     lv_obj_set_flex_grow(panel, 1);
-    laser_ui_apply_panel_style(panel, UI_COLOR_PANEL, 8);
     lv_obj_set_flex_flow(panel, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(panel, 12, LV_PART_MAIN);
+    laser_ui_add_panel_scanline(panel, UI_COLOR_ACCENT_DIM);
 
     lv_obj_t *mat_lbl = lv_label_create(panel);
     lv_label_set_text(mat_lbl, "材料设置");
@@ -60,6 +60,12 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_t *material = lv_dropdown_create(panel);
     lv_dropdown_set_options(material, "Wood\nAcrylic\nLeather\nCustom");
     lv_obj_set_width(material, LV_PCT(100));
+    lv_obj_set_height(material, 34);
+    lv_obj_set_style_bg_color(material, lv_color_hex(0x182033), LV_PART_MAIN);
+    lv_obj_set_style_border_color(material, UI_COLOR_BORDER_GLOW, LV_PART_MAIN);
+    lv_obj_set_style_border_opa(material, LV_OPA_70, LV_PART_MAIN);
+    lv_obj_set_style_radius(material, 6, LV_PART_MAIN);
+    lv_obj_set_style_text_color(material, UI_COLOR_TEXT, LV_PART_MAIN);
     lv_obj_add_event_cb(material, material_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_MATERIAL_CHANGED)));
 
@@ -76,8 +82,10 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_flex_align(power_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *power = lv_slider_create(power_row);
     lv_obj_set_width(power, LV_PCT(72));
+    lv_obj_set_height(power, 12);
     lv_slider_set_range(power, 0, 10);
     lv_slider_set_value(power, 5, LV_ANIM_OFF);
+    laser_ui_style_energy_slider(power, UI_COLOR_ACCENT);
     lv_obj_add_event_cb(power, power_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_POWER_CHANGED)));
     lv_obj_t *power_val = lv_label_create(power_row);
@@ -99,8 +107,10 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_set_flex_align(speed_row, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_t *speed = lv_slider_create(speed_row);
     lv_obj_set_width(speed, LV_PCT(72));
+    lv_obj_set_height(speed, 12);
     lv_slider_set_range(speed, 0, 5);
     lv_slider_set_value(speed, 1, LV_ANIM_OFF);
+    laser_ui_style_energy_slider(speed, UI_COLOR_RUN);
     lv_obj_add_event_cb(speed, speed_slider_cb, LV_EVENT_VALUE_CHANGED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_SPEED_CHANGED)));
     lv_obj_t *speed_val = lv_label_create(speed_row);
@@ -114,6 +124,11 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
     lv_obj_t *apply = laser_ui_create_button(page, "应用", UI_COLOR_ACCENT, lv_color_hex(0x1565C0));
     lv_obj_set_width(apply, LV_PCT(100));
     lv_obj_set_height(apply, 40);
+    lv_obj_set_style_border_width(apply, 1, LV_PART_MAIN);
+    lv_obj_set_style_border_color(apply, UI_COLOR_ACCENT_GLOW, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(apply, 4, LV_PART_MAIN);
+    lv_obj_set_style_shadow_color(apply, UI_COLOR_ACCENT, LV_PART_MAIN);
+    lv_obj_set_style_shadow_opa(apply, LV_OPA_30, LV_PART_MAIN);
     lv_obj_add_event_cb(apply, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_SETTINGS_APPLY)));
 

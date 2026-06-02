@@ -19,7 +19,8 @@ description: >-
 
 - 板型与引脚：以 `main/boards/<board>/config.h`、`config.json` 为准，修改前先读对应板级文件。
 - 构建：ESP-IDF 标准流程（`idf.py set-target`、`idf.py build`）；分区表见 `partitions/`。
-- UI：激光/CNC 触摸屏在 `main/boards/bread-compact-wifi/`；`CONFIG_INTERACTION_UI_ONLY` 时 CNC 经 UART 转发至第二块 S3（`peer_link/`）。
+- UI：激光/CNC 触摸屏在 `main/boards/bread-compact-wifi/`；`CONFIG_INTERACTION_UI_ONLY` 时 CNC 经 UART 转发至第二块 S3（`peer_link/`）。双机架构详细说明见 `dual-s3-link` skill。
+- 双 S3 通信：交互 S3 (主工程) ↔ 运动/语音 S3 (`xiaozhi-esp32-jdil/` 子工程)，UART NDJSON 协议，引脚和协议对照见 `dual-s3-link` skill。
 - WebUI：`main/boards/webui/`（HTTP + WebSocket）。
 - 变更范围：只改与任务相关的板级/模块，避免无关板型或全局重构。
 
