@@ -37,9 +37,9 @@ static const char *kStepNames[SPLASH_STEP_COUNT] = {
     "MCP Tools",
     "Network",
     "WiFi Connected",
-    "Assets",
+    "Asset Loading",
     "Version Check",
-    "Protocol",
+    "Communication Protocol",
     "System Ready",
 };
 

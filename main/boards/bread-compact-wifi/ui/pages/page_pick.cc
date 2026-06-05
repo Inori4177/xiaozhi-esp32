@@ -1,5 +1,6 @@
 #include "page_pick.h"
 
+#include "../assets/laser_ui_images.h"
 #include "../laser_ui_layout.h"
 #include "../laser_ui_widgets.h"
 #include "../laser_ui_events.h"
@@ -15,10 +16,10 @@ static lv_obj_t *g_coord_y_label = nullptr;
 static lv_obj_t *g_status_label = nullptr;
 
 static constexpr int kCrosshairArmPx = 14;
-static constexpr int kMapRailGap = 2;
+static constexpr int kMapRailGap = 3;
 static constexpr int kTitleMapGap = 2;
-static constexpr int kSideBtnW = 74;
-static constexpr int kSideBtnH = 42;
+static constexpr int kSideBtnW = 130;
+static constexpr int kSideBtnH = 60;
 static constexpr int kCoordToBtnGap = 10;
 static constexpr int kConfirmToResetGap = 18;
 
@@ -182,9 +183,30 @@ static lv_obj_t *create_coord_label(lv_obj_t *parent, const char *text)
     lv_label_set_text(lbl, text);
     lv_obj_set_width(lbl, LV_SIZE_CONTENT);
     lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT_DIM, LV_PART_MAIN);
+    lv_obj_set_style_text_color(lbl, UI_COLOR_TEXT, LV_PART_MAIN);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
     return lbl;
+}
+
+static void decorate_side_button(lv_obj_t *btn, const lv_image_dsc_t *icon_src)
+{
+    if (btn == nullptr || icon_src == nullptr) {
+        return;
+    }
+
+    lv_obj_t *icon = lv_image_create(btn);
+    lv_image_set_src(icon, icon_src);
+    lv_obj_set_pos(icon, 10, 11);
+    lv_obj_set_size(icon, 18, 18);
+    lv_obj_remove_flag(icon, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t *label = lv_obj_get_child(btn, 0);
+    if (label != nullptr) {
+        lv_obj_set_pos(label, 34, 11);
+        lv_obj_set_width(label, kSideBtnW - 40);
+        lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+        lv_obj_remove_flag(label, LV_OBJ_FLAG_CLICKABLE);
+    }
 }
 
 lv_obj_t *page_pick_create(lv_obj_t *parent)
@@ -214,7 +236,7 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
     lv_obj_set_style_pad_all(g_map_block, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_row(g_map_block, kTitleMapGap, LV_PART_MAIN);
     lv_obj_set_flex_flow(g_map_block, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(g_map_block, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(g_map_block, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     disable_scroll(g_map_block);
     lv_obj_add_event_cb(g_map_block, map_block_layout_cb, LV_EVENT_SIZE_CHANGED, nullptr);
 
@@ -224,24 +246,32 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
     lv_obj_set_style_text_align(g_title, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
     lv_label_set_long_mode(g_title, LV_LABEL_LONG_CLIP);
 
-    g_map_frame = laser_ui_create_hud_panel(g_map_block, lv_color_hex(0x0B141C), 0);
-    lv_obj_set_style_border_color(g_map_frame, UI_COLOR_ACCENT_DIM, LV_PART_MAIN);
+    g_map_frame = lv_obj_create(g_map_block);
+    laser_ui_apply_panel_style(g_map_frame, UI_COLOR_CARD_ALT, 0);
+    lv_obj_set_style_border_color(g_map_frame, UI_COLOR_SOFT_MINT, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_map_frame, 2, LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_color(g_map_frame, lv_color_hex(0x111E2A), LV_PART_MAIN);
-    lv_obj_set_style_bg_grad_dir(g_map_frame, LV_GRAD_DIR_VER, LV_PART_MAIN);
     lv_obj_add_flag(g_map_frame, LV_OBJ_FLAG_CLICKABLE);
     disable_scroll(g_map_frame);
     lv_obj_add_event_cb(g_map_frame, map_frame_touch_cb, LV_EVENT_PRESSED, nullptr);
     lv_obj_add_event_cb(g_map_frame, map_frame_touch_cb, LV_EVENT_PRESSING, nullptr);
     lv_obj_add_event_cb(g_map_frame, map_frame_touch_cb, LV_EVENT_RELEASED, nullptr);
 
+    lv_obj_t *grid = lv_image_create(g_map_frame);
+    lv_image_set_src(grid, &ui_pick_grid_240);
+    lv_obj_center(grid);
+    lv_obj_move_background(grid);
+    lv_obj_remove_flag(grid, LV_OBJ_FLAG_CLICKABLE);
     laser_ui_add_map_grid(g_map_frame, UI_COLOR_ACCENT);
+
     g_head_dot = create_head_dot(g_map_frame);
     g_cursor_cross = create_crosshair(g_map_frame, UI_COLOR_ACCENT, kCrosshairArmPx);
 
-    lv_obj_t *right_rail = laser_ui_create_hud_panel(body_row, lv_color_hex(0x101724), 6);
+    lv_obj_t *right_rail = lv_obj_create(body_row);
     lv_obj_set_width(right_rail, LV_SIZE_CONTENT);
     lv_obj_set_height(right_rail, LV_PCT(100));
+    lv_obj_set_style_bg_opa(right_rail, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(right_rail, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(right_rail, 0, LV_PART_MAIN);
     lv_obj_set_flex_flow(right_rail, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(right_rail, 8, LV_PART_MAIN);
     lv_obj_set_flex_align(right_rail, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
@@ -257,17 +287,19 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
     lv_obj_set_style_text_color(g_status_label, UI_COLOR_ACCENT, LV_PART_MAIN);
     lv_obj_add_flag(g_status_label, LV_OBJ_FLAG_HIDDEN);
 
-    lv_obj_t *btn_confirm = laser_ui_create_button(right_rail, "确定", UI_COLOR_BUOY_ACTIVE, lv_color_hex(0x1A3050));
+    lv_obj_t *btn_confirm = laser_ui_create_button(right_rail, "确定", UI_COLOR_SOFT_MINT, UI_COLOR_MINT);
     lv_obj_set_size(btn_confirm, kSideBtnW, kSideBtnH);
     lv_obj_set_ext_click_area(btn_confirm, 0);
     lv_obj_set_style_margin_top(btn_confirm, kCoordToBtnGap, LV_PART_MAIN);
+    decorate_side_button(btn_confirm, &ui_icon_pick);
     lv_obj_add_event_cb(btn_confirm, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PICK_CONFIRM)));
 
-    lv_obj_t *btn_reset = laser_ui_create_button(right_rail, "回零", UI_COLOR_PANEL, lv_color_hex(0x2A2A2A));
+    lv_obj_t *btn_reset = laser_ui_create_button(right_rail, "回零", UI_COLOR_SOFT_MINT, UI_COLOR_MINT);
     lv_obj_set_size(btn_reset, kSideBtnW, kSideBtnH);
     lv_obj_set_ext_click_area(btn_reset, 0);
     lv_obj_set_style_margin_top(btn_reset, kConfirmToResetGap, LV_PART_MAIN);
+    decorate_side_button(btn_reset, &ui_icon_home);
     lv_obj_add_event_cb(btn_reset, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PICK_RESET)));
 

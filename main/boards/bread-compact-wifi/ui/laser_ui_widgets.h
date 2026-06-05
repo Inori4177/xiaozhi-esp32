@@ -16,6 +16,10 @@ void laser_ui_style_status_bar(lv_obj_t *bar, lv_color_t color);
 void laser_ui_add_map_grid(lv_obj_t *parent, lv_color_t color);
 void laser_ui_add_background_pattern(lv_obj_t *parent);
 void laser_ui_add_panel_scanline(lv_obj_t *parent, lv_color_t color);
+lv_obj_t *laser_ui_create_image_button(lv_obj_t *parent, const lv_image_dsc_t *src,
+                                       const char *text, lv_color_t text_color);
+void laser_ui_add_title_icon(lv_obj_t *parent, const lv_image_dsc_t *src,
+                             const char *text, lv_color_t color);
 
 // ============================================================================
 // 生物拟态导航浮标 — Biomimetic buoy widget

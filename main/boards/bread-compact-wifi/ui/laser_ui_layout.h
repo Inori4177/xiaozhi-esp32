@@ -14,10 +14,10 @@
 // ============================================================================
 
 /* 浮标尺寸与位置 — 针对 480×320 横屏优化 */
-#define UI_BUOY_R            13   // 浮标圆形半径 (26px直径, 可见性好)
+#define UI_BUOY_R            11   // 浮标圆形半径 (22px直径)
 #define UI_BUOY_HIT_R        22   // 触控热区半径（扩展不可见触控区域到 44px）
 #define UI_BUOY_MARGIN_L     4    // 距左边缘
-#define UI_BUOY_COLLAPSED_X   (UI_BUOY_R + UI_BUOY_MARGIN_L)  // 折叠态 X 中心
+#define UI_BUOY_COLLAPSED_X   0    // 折叠态 X 中心：贴在左边缘，只露出右半圆
 #define UI_BUOY_EXPANDED_X    (UI_BUOY_R + UI_BUOY_MARGIN_L)  // 展开态 X 中心（与折叠同侧）
 #define UI_BUOY_GAP           50   // 展开后各浮标之间的间隙 (10dp touch spacing)
 #define UI_BUOY_COUNT         3    // 三个页面：Print / Settings / Pick
@@ -56,6 +56,9 @@
 #define UI_CONTENT_W            (LV_HOR_RES - UI_NAV_EXPANDED_W)  // 内容区宽度
 
 /* ---------- 页面切换动画 ---------- */
+#undef UI_CONTENT_W
+#define UI_CONTENT_X            54
+#define UI_CONTENT_W            426
 #define UI_PAGE_OPEN_ANIM_MS   200
 #define UI_PAGE_CLOSE_ANIM_MS  100
 
@@ -64,55 +67,74 @@
 // ============================================================================
 
 /* 基础色 */
-#define UI_COLOR_BG_BLACK     lv_color_hex(0x06080D)   // 最深底色
-#define UI_COLOR_BG_DEEP      lv_color_hex(0x0C0F18)   // 页面深层背景
-#define UI_COLOR_SURFACE      lv_color_hex(0x141825)   // 卡片/面板表面
-#define UI_COLOR_SURFACE_RAISED lv_color_hex(0x1A1F30) // 悬浮面板
+#define UI_COLOR_PAGE_BG_TOP      lv_color_hex(0xD9F3EA)
+#define UI_COLOR_PAGE_BG_BOTTOM   lv_color_hex(0xFFD8C8)
+#define UI_COLOR_CARD             lv_color_hex(0xFFFDF9)
+#define UI_COLOR_CARD_ALT         lv_color_hex(0xF4FCF9)
+#define UI_COLOR_CARD_PEACH       lv_color_hex(0xFFF0E8)
+#define UI_COLOR_SOFT_MINT        lv_color_hex(0xBFEADF)
+#define UI_COLOR_MINT             lv_color_hex(0x42CDBE)
+#define UI_COLOR_AQUA             lv_color_hex(0x1EAFA2)
+#define UI_COLOR_PEACH            lv_color_hex(0xFFD4C3)
+#define UI_COLOR_CORAL            lv_color_hex(0xFF7B76)
+#define UI_COLOR_INK              lv_color_hex(0x102846)
+#define UI_COLOR_MUTED            lv_color_hex(0x314A64)
+#define UI_COLOR_FAINT            lv_color_hex(0x586B7F)
+#define UI_COLOR_LIGHT_BORDER     lv_color_hex(0xD9F1EB)
+#define UI_COLOR_LIGHT_LINE       lv_color_hex(0xE6EEF2)
+
+#define UI_COLOR_BG_BLACK     UI_COLOR_PAGE_BG_BOTTOM
+#define UI_COLOR_BG_DEEP      UI_COLOR_PAGE_BG_TOP
+#define UI_COLOR_SURFACE      UI_COLOR_CARD
+#define UI_COLOR_SURFACE_RAISED UI_COLOR_CARD_ALT
 #define UI_COLOR_NAV_BG       lv_color_hex(0x111420)   // 导航区背景
 /* 向后兼容: 原 UI_COLOR_PANEL (splash 进度条背景等仍使用) */
 #define UI_COLOR_PANEL        UI_COLOR_SURFACE
 
-/* 浮标配色 */
-#define UI_COLOR_BUOY_IDLE    lv_color_hex(0x1C2545)   // 浮标默认色
-#define UI_COLOR_BUOY_ACTIVE  lv_color_hex(0x2D4A8A)   // 浮标激活色
-#define UI_COLOR_BUOY_PRESS   lv_color_hex(0x3A5090)   // 浮标按压色
-#define UI_COLOR_BUOY_GLOW    lv_color_hex(0x3D7BFF)   // 浮标发光色
+/* 浮标配色 — 青绿色系 */
+#define UI_COLOR_BUOY_IDLE    lv_color_hex(0x1A8A80)   // 浮标默认色
+#define UI_COLOR_BUOY_ACTIVE  lv_color_hex(0x2EC4B6)   // 浮标激活色
+#define UI_COLOR_BUOY_PRESS   lv_color_hex(0x3DD6C8)   // 浮标按压色
+#define UI_COLOR_BUOY_GLOW    lv_color_hex(0x70E8DC)   // 浮标发光色
 
 /* 边框与分割线 */
-#define UI_COLOR_BORDER       lv_color_hex(0x222840)   // 普通边框
-#define UI_COLOR_BORDER_GLOW  lv_color_hex(0x3D5A90)   // 发光边框
+#define UI_COLOR_BORDER       UI_COLOR_LIGHT_LINE
+#define UI_COLOR_BORDER_GLOW  UI_COLOR_LIGHT_BORDER
 
 /* 文字色 */
-#define UI_COLOR_TEXT         lv_color_hex(0xE8EDF5)   // 主文字
-#define UI_COLOR_TEXT_SEC     lv_color_hex(0x9AA4BF)   // 次要文字
-#define UI_COLOR_TEXT_DIM     lv_color_hex(0x6B7590)   // 暗淡文字
+#define UI_COLOR_TEXT         UI_COLOR_INK
+#define UI_COLOR_TEXT_SEC     UI_COLOR_MUTED
+#define UI_COLOR_TEXT_DIM     UI_COLOR_FAINT
 
 /* 强调色 (青/蓝) */
-#define UI_COLOR_ACCENT       lv_color_hex(0x4D9FFF)   // 主强调色
-#define UI_COLOR_ACCENT_DIM   lv_color_hex(0x2A60B0)   // 暗强调色
-#define UI_COLOR_ACCENT_GLOW  lv_color_hex(0x6DB5FF)   // 发光强调色
+#define UI_COLOR_ACCENT       UI_COLOR_AQUA
+#define UI_COLOR_ACCENT_DIM   UI_COLOR_SOFT_MINT
+#define UI_COLOR_ACCENT_GLOW  lv_color_hex(0xA8EDE4)
 
 /* 功能色 */
-#define UI_COLOR_RUN          lv_color_hex(0x22C55E)   // 运行 / 绿色
-#define UI_COLOR_RUN_DIM      lv_color_hex(0x166534)   // 暗绿
-#define UI_COLOR_PAUSE        lv_color_hex(0xF59E0B)   // 暂停 / 琥珀
-#define UI_COLOR_PAUSE_DIM    lv_color_hex(0x92400E)   // 暗琥珀
-#define UI_COLOR_IDLE         lv_color_hex(0x64748B)   // 空闲 / 灰蓝
-#define UI_COLOR_ALARM        lv_color_hex(0xEF4444)   // 警告 / 红
+#define UI_COLOR_RUN          lv_color_hex(0x32C79B)
+#define UI_COLOR_RUN_DIM      lv_color_hex(0xDFF7EF)
+#define UI_COLOR_PAUSE        lv_color_hex(0xFFAD70)
+#define UI_COLOR_PAUSE_DIM    lv_color_hex(0xFFE8D9)
+#define UI_COLOR_IDLE         lv_color_hex(0x86A2B6)
+#define UI_COLOR_ALARM        UI_COLOR_CORAL
 
 /* 状态面板专用 */
-#define UI_COLOR_STATUS_BG        lv_color_hex(0x101522)
-#define UI_COLOR_STATUS_BORDER    lv_color_hex(0x263450)
-#define UI_COLOR_STATUS_TITLE     lv_color_hex(0xF0F4F8)
-#define UI_COLOR_STATUS_VALUE     lv_color_hex(0x60A5FA)
-#define UI_COLOR_STATUS_META      lv_color_hex(0x94A3B8)
+#define UI_COLOR_STATUS_BG        UI_COLOR_CARD
+#define UI_COLOR_STATUS_BORDER    UI_COLOR_LIGHT_BORDER
+#define UI_COLOR_STATUS_TITLE     UI_COLOR_INK
+#define UI_COLOR_STATUS_VALUE     UI_COLOR_AQUA
+#define UI_COLOR_STATUS_META      UI_COLOR_MUTED
 /* 空闲状态徽章 (ui_cnc_print_status_service.cc 引用) */
-#define UI_COLOR_STATUS_IDLE_BG   lv_color_hex(0x37474F)
-#define UI_COLOR_STATUS_IDLE_FG   lv_color_hex(0xECEFF1)
+#define UI_COLOR_STATUS_IDLE_BG   lv_color_hex(0xE8F7F1)
+#define UI_COLOR_STATUS_IDLE_FG   lv_color_hex(0x2AAE91)
 
 // ============================================================================
-// 赛博朋克 splash 屏调色板 (保持不变)
+
 // ============================================================================
+// 公共样式函数声明
+// ============================================================================
+// Splash screen compatibility palette.
 #define SPLASH_BG             lv_color_hex(0x000000)
 #define CYBER_BG              lv_color_hex(0x0A0A12)
 #define CYBER_GRID            lv_color_hex(0x1A1A2E)
@@ -123,7 +145,4 @@
 #define CYBER_DIM             lv_color_hex(0x4A5568)
 #define CYBER_RED             lv_color_hex(0xFF3366)
 
-// ============================================================================
-// 公共样式函数声明
-// ============================================================================
 void laser_ui_apply_main_gradient(lv_obj_t *obj);

@@ -1,6 +1,7 @@
 #include "laser_ui_shell.h"
 #include "laser_ui_layout.h"
 #include "laser_ui_widgets.h"
+#include "assets/laser_ui_images.h"
 #include "pages/page_print.h"
 #include "pages/page_settings.h"
 #include "pages/page_pick.h"
@@ -594,8 +595,10 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
 
     /* ---- 2. 内容宿主 ---- */
     shell->content_host = lv_obj_create(shell->root);
-    lv_obj_set_size(shell->content_host, UI_CONTENT_W, LV_PCT(100));
-    lv_obj_set_pos(shell->content_host, UI_NAV_EXPANDED_W, 0);
+    lv_obj_set_size(shell->content_host, UI_CONTENT_W, UI_MAIN_H);
+    lv_obj_set_pos(shell->content_host, UI_CONTENT_X, 0);
+    lv_obj_set_layout(shell->content_host, LV_LAYOUT_NONE);
+    lv_obj_set_flex_grow(shell->content_host, 0);
     lv_obj_set_style_bg_opa(shell->content_host, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(shell->content_host, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(shell->content_host, 0, LV_PART_MAIN);
@@ -612,14 +615,20 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
 
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {
         if (shell->pages[i] != nullptr) {
-            lv_obj_set_size(shell->pages[i], UI_CONTENT_W, LV_PCT(100));
+            lv_obj_set_size(shell->pages[i], UI_CONTENT_W, UI_MAIN_H);
+            lv_obj_set_layout(shell->pages[i], LV_LAYOUT_NONE);
+            lv_obj_set_flex_grow(shell->pages[i], 0);
+            lv_obj_set_style_min_width(shell->pages[i], UI_CONTENT_W, LV_PART_MAIN);
+            lv_obj_set_style_min_height(shell->pages[i], UI_MAIN_H, LV_PART_MAIN);
+            lv_obj_set_style_max_width(shell->pages[i], UI_CONTENT_W, LV_PART_MAIN);
+            lv_obj_set_style_max_height(shell->pages[i], UI_MAIN_H, LV_PART_MAIN);
             lv_obj_add_flag(shell->pages[i], LV_OBJ_FLAG_HIDDEN);
         }
     }
 
     /* ---- 4. 浮标层 ---- */
     shell->buoy_layer = lv_obj_create(shell->root);
-    lv_obj_set_size(shell->buoy_layer, LV_HOR_RES, LV_PCT(100));
+    lv_obj_set_size(shell->buoy_layer, LV_HOR_RES, UI_MAIN_H);
     lv_obj_set_pos(shell->buoy_layer, 0, 0);
     lv_obj_set_style_bg_opa(shell->buoy_layer, LV_OPA_TRANSP, LV_PART_MAIN);
     lv_obj_set_style_border_width(shell->buoy_layer, 0, LV_PART_MAIN);
