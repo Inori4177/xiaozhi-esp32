@@ -876,6 +876,8 @@ if(CONFIG_MSP3525_LASER_UI)
             ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/peer_link)
         file(GLOB PEER_LINK_SRCS
             ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/peer_link/*.cc)
+        list(REMOVE_ITEM PEER_LINK_SRCS
+            ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/peer_link/peer_uart_link.cc)
         list(APPEND SOURCES ${PEER_LINK_SRCS})
     endif()
 endif()

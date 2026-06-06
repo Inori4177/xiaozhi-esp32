@@ -5,7 +5,7 @@
 // ============================================================================
 // 屏幕布局 (480×320 横屏) — Screen layout constants
 // ============================================================================
-#define UI_TOP_H        24   // 顶部状态栏高度 (chrome area)
+#define UI_TOP_H        27  // 顶部状态栏高度 (chrome area)
 #define UI_BOTTOM_H     20   // 底部状态栏高度
 #define UI_MAIN_H       (LV_VER_RES - UI_TOP_H - UI_BOTTOM_H)  // 主区域 = 276px
 
@@ -61,6 +61,20 @@
 #define UI_CONTENT_W            426
 #define UI_PAGE_OPEN_ANIM_MS   200
 #define UI_PAGE_CLOSE_ANIM_MS  100
+
+/* ---------- 宸︿晶鍥剧墖瀵艰埅 ---------- */
+#define UI_NAV_IMAGE_X          0
+#define UI_NAV_IMAGE_Y          8
+#define UI_NAV_IMAGE_W          53
+#define UI_NAV_IMAGE_H          260
+#define UI_NAV_HOTSPOT_X        4
+#define UI_NAV_HOTSPOT_W        45
+#define UI_NAV_HOTSPOT_H        44
+#define UI_NAV_HOTSPOT_Y_RUN    29
+#define UI_NAV_HOTSPOT_Y_SETTINGS 87
+#define UI_NAV_HOTSPOT_Y_PICK   145
+#define UI_NAV_HOTSPOT_Y_VOICE  202
+#define UI_NAV_HOTSPOT_EXTEND   6
 
 // ============================================================================
 // 主 UI 调色板 (暗色主题 — Dark theme with cyan accent)

@@ -23,3 +23,6 @@ typedef void (*laser_ui_event_handler_t)(laser_ui_event_id_t id, void *user_data
 void laser_ui_events_init(void);
 void laser_ui_events_register(laser_ui_event_handler_t handler, void *user_data);
 void laser_ui_events_emit(laser_ui_event_id_t id);
+
+/** Debug: human-readable event name for logging. */
+const char *laser_ui_event_name(laser_ui_event_id_t id);

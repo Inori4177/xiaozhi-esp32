@@ -287,7 +287,7 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
     lv_obj_set_style_text_color(g_status_label, UI_COLOR_ACCENT, LV_PART_MAIN);
     lv_obj_add_flag(g_status_label, LV_OBJ_FLAG_HIDDEN);
 
-    lv_obj_t *btn_confirm = laser_ui_create_button(right_rail, "确定", UI_COLOR_SOFT_MINT, UI_COLOR_MINT);
+    lv_obj_t *btn_confirm = laser_ui_create_button(right_rail, "确定", UI_COLOR_AQUA , UI_COLOR_MINT);
     lv_obj_set_size(btn_confirm, kSideBtnW, kSideBtnH);
     lv_obj_set_ext_click_area(btn_confirm, 0);
     lv_obj_set_style_margin_top(btn_confirm, kCoordToBtnGap, LV_PART_MAIN);
@@ -295,7 +295,7 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
     lv_obj_add_event_cb(btn_confirm, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_PICK_CONFIRM)));
 
-    lv_obj_t *btn_reset = laser_ui_create_button(right_rail, "回零", UI_COLOR_SOFT_MINT, UI_COLOR_MINT);
+    lv_obj_t *btn_reset = laser_ui_create_button(right_rail, "回零", UI_COLOR_AQUA , UI_COLOR_MINT);
     lv_obj_set_size(btn_reset, kSideBtnW, kSideBtnH);
     lv_obj_set_ext_click_area(btn_reset, 0);
     lv_obj_set_style_margin_top(btn_reset, kConfirmToResetGap, LV_PART_MAIN);

@@ -22,6 +22,44 @@ static int g_handler_count = 0;
 
 static QueueHandle_t s_evt_queue = nullptr;
 
+const char *laser_ui_event_name(laser_ui_event_id_t id)
+{
+    switch (id) {
+    case LASER_EVT_NAV_SWITCH:
+        return "nav_switch";
+    case LASER_EVT_JOG_X_PLUS:
+        return "jog_x+";
+    case LASER_EVT_JOG_X_MINUS:
+        return "jog_x-";
+    case LASER_EVT_JOG_Y_PLUS:
+        return "jog_y+";
+    case LASER_EVT_JOG_Y_MINUS:
+        return "jog_y-";
+    case LASER_EVT_JOG_HOME:
+        return "jog_home";
+    case LASER_EVT_RUN:
+        return "run";
+    case LASER_EVT_PAUSE:
+        return "pause";
+    case LASER_EVT_STEP_CHANGED:
+        return "step_changed";
+    case LASER_EVT_MATERIAL_CHANGED:
+        return "material_changed";
+    case LASER_EVT_POWER_CHANGED:
+        return "power_changed";
+    case LASER_EVT_SPEED_CHANGED:
+        return "speed_changed";
+    case LASER_EVT_SETTINGS_APPLY:
+        return "settings_apply";
+    case LASER_EVT_PICK_CONFIRM:
+        return "pick_confirm";
+    case LASER_EVT_PICK_RESET:
+        return "pick_reset";
+    default:
+        return "unknown";
+    }
+}
+
 static bool is_cnc_event(laser_ui_event_id_t id)
 {
     switch (id) {
@@ -82,23 +120,26 @@ static void ui_evt_task(void *arg)
         }
 
         if (id == LASER_EVT_RUN || id == LASER_EVT_PAUSE) {
+            ESP_LOGI(TAG, "dispatch transport: %s", laser_ui_event_name(id));
             dispatch_cnc_transport(id);
             continue;
         }
 
         if (is_cnc_event(id)) {
+            ESP_LOGI(TAG, "dispatch cnc: %s", laser_ui_event_name(id));
             ui_cnc_print_service_on_event(id);
             continue;
         }
 
         if (g_handler_count == 0) {
-            ESP_LOGW(TAG, "event %d (no handler)", static_cast<int>(id));
+            ESP_LOGW(TAG, "event %s (%d) no handler", laser_ui_event_name(id), static_cast<int>(id));
             continue;
         }
 
+        ESP_LOGI(TAG, "dispatch lvgl handler: %s", laser_ui_event_name(id));
         if (lv_async_call(dispatch_lvgl_handlers, reinterpret_cast<void *>(static_cast<intptr_t>(id))) !=
             LV_RESULT_OK) {
-            ESP_LOGW(TAG, "lv_async_call failed for event %d", static_cast<int>(id));
+            ESP_LOGW(TAG, "lv_async_call failed for %s", laser_ui_event_name(id));
         }
     }
 }
@@ -153,6 +194,8 @@ void laser_ui_events_emit(laser_ui_event_id_t id)
         return;
     }
     if (xQueueSend(s_evt_queue, &id, 0) != pdTRUE) {
-        ESP_LOGW(TAG, "evt queue full, drop %d", static_cast<int>(id));
+        ESP_LOGW(TAG, "evt queue full, drop %s", laser_ui_event_name(id));
+        return;
     }
+    ESP_LOGI(TAG, "queued %s", laser_ui_event_name(id));
 }

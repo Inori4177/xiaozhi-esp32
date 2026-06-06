@@ -141,6 +141,22 @@ choice DISPLAY_OLED_TYPE
         bool "SH1106 128*64"
 endchoice
 
+menu "Peer UART link (interaction S3)"
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI
+
+config MOTION_PEER_UART
+    bool "UART link to interaction ESP32-S3"
+    default y
+    help
+        Receive CNC commands over UART (NDJSON) from interaction S3.
+
+config MOTION_PEER_UART_BAUD
+    int "Peer UART baud rate"
+    default 115200
+    depends on MOTION_PEER_UART
+
+endmenu
+
 choice DISPLAY_STYLE
     prompt "Select display style"
     default USE_DEFAULT_MESSAGE_STYLE

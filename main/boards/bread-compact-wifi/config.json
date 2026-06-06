@@ -7,6 +7,7 @@
                 "CONFIG_INTERACTION_UI_ONLY=y",
                 "CONFIG_INTERACTION_PEER_UART=y",
                 "CONFIG_INTERACTION_PEER_UART_BAUD=115200",
+                "CONFIG_INTERACTION_PEER_VOICE=y",
                 "CONFIG_MSP3525_LASER_UI=y",
                 "CONFIG_XIAOZHI_WEBUI=y",
                 "CONFIG_FLASH_NONE_ASSETS=y",

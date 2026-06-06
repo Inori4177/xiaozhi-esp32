@@ -17,6 +17,11 @@ LV_IMG_DECLARE(arrow_up);
 LV_IMG_DECLARE(arrow_down);
 LV_IMG_DECLARE(arrow_left);
 LV_IMG_DECLARE(arrow_right);
+LV_IMG_DECLARE(print);
+LV_IMG_DECLARE(printpage);
+LV_IMG_DECLARE(settingpage);
+LV_IMG_DECLARE(pickpage);
+LV_IMG_DECLARE(xiaozhipage);
 
 LV_IMG_DECLARE(ui_bg_fresh_480x276);
 LV_IMG_DECLARE(ui_btn_apply_220x36);

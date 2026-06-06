@@ -166,13 +166,13 @@ static void refresh_status_widgets(void)
         float y = 0.0f;
         ui_cnc_motion_facade_get_display_position_mm(&x, &y);
 
-        char buf[16];
+        char buf[24];
         if (g_pos_x != nullptr) {
-            snprintf(buf, sizeof(buf), "X:%.1f", static_cast<double>(x));
+            snprintf(buf, sizeof(buf), "X:%.1fmm", static_cast<double>(x));
             lv_label_set_text(g_pos_x, buf);
         }
         if (g_pos_y != nullptr) {
-            snprintf(buf, sizeof(buf), "Y:%.1f", static_cast<double>(y));
+            snprintf(buf, sizeof(buf), "Y:%.1fmm", static_cast<double>(y));
             lv_label_set_text(g_pos_y, buf);
         }
     }

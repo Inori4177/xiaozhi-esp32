@@ -6,15 +6,21 @@
 #include "../laser_ui_widgets.h"
 #include "../../laser_ui_state.h"
 
+#include <esp_log.h>
+
+static const char *TAG = "page_settings";
+
 static void emit_cb(lv_event_t *e)
 {
     auto id = static_cast<laser_ui_event_id_t>(reinterpret_cast<intptr_t>(lv_event_get_user_data(e)));
+    ESP_LOGI(TAG, "touch -> %s", laser_ui_event_name(id));
     laser_ui_events_emit(id);
 }
 
 static void power_slider_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED) {
+        ESP_LOGI(TAG, "power slider changed");
         laser_ui_state_on_power_slider(e);
     }
 }
@@ -22,12 +28,14 @@ static void power_slider_cb(lv_event_t *e)
 static void speed_slider_cb(lv_event_t *e)
 {
     if (lv_event_get_code(e) == LV_EVENT_VALUE_CHANGED) {
+        ESP_LOGI(TAG, "speed slider changed");
         laser_ui_state_on_speed_slider(e);
     }
 }
 
 static void material_cb(lv_event_t *e)
 {
+    ESP_LOGI(TAG, "material dropdown changed");
     laser_ui_state_on_material_changed(e);
     emit_cb(e);
 }

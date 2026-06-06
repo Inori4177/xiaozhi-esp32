@@ -1,4 +1,4 @@
-#include "peer_uart_link.h"
+#include "peer_uart_mux.h"
 
 #include "config.h"
 
@@ -12,7 +12,7 @@
 #include <freertos/semphr.h>
 #include <freertos/task.h>
 
-static const char *TAG = "peer_uart";
+static const char *TAG = "peer_uart_mux";
 
 #ifndef PEER_UART_RX_BUF
 #define PEER_UART_RX_BUF 2048
@@ -24,9 +24,11 @@ static const char *TAG = "peer_uart";
 #define PEER_UART_LINE_MAX 512
 #endif
 
+#define PEER_UART_MAX_LISTENERS 4
+
 static SemaphoreHandle_t s_tx_mutex = nullptr;
-static peer_uart_line_cb_t s_line_cb = nullptr;
-static void *s_line_user = nullptr;
+static peer_uart_line_cb_t s_listeners[PEER_UART_MAX_LISTENERS] = {};
+static void *s_listener_users[PEER_UART_MAX_LISTENERS] = {};
 static volatile bool s_link_up = false;
 static TaskHandle_t s_rx_task = nullptr;
 
@@ -63,8 +65,32 @@ bool peer_uart_link_is_up(void)
 
 void peer_uart_link_set_line_callback(peer_uart_line_cb_t cb, void *user_data)
 {
-    s_line_cb = cb;
-    s_line_user = user_data;
+    s_listeners[0] = cb;
+    s_listener_users[0] = user_data;
+}
+
+bool peer_uart_link_add_listener(peer_uart_line_cb_t cb, void *user_data)
+{
+    if (cb == nullptr) {
+        return false;
+    }
+    for (int i = 1; i < PEER_UART_MAX_LISTENERS; i++) {
+        if (s_listeners[i] == nullptr) {
+            s_listeners[i] = cb;
+            s_listener_users[i] = user_data;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void dispatch_line(const char *line)
+{
+    for (int i = 0; i < PEER_UART_MAX_LISTENERS; i++) {
+        if (s_listeners[i] != nullptr) {
+            s_listeners[i](line, s_listener_users[i]);
+        }
+    }
 }
 
 static void rx_task(void *arg)
@@ -87,9 +113,7 @@ static void rx_task(void *arg)
                 continue;
             }
             line[len] = '\0';
-            if (s_line_cb != nullptr) {
-                s_line_cb(line, s_line_user);
-            }
+            dispatch_line(line);
             len = 0;
             continue;
         }
@@ -132,7 +156,7 @@ bool peer_uart_link_init(void)
     }
 
     s_link_up = true;
-    ESP_LOGI(TAG, "Peer UART%d TX=%d RX=%d @ %d baud",
+    ESP_LOGI(TAG, "Peer UART mux UART%d TX=%d RX=%d @ %d baud",
              static_cast<int>(PEER_UART_NUM), static_cast<int>(PEER_UART_TX_PIN),
              static_cast<int>(PEER_UART_RX_PIN), CONFIG_INTERACTION_PEER_UART_BAUD);
     return true;

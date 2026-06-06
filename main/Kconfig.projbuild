@@ -1004,6 +1004,11 @@ config INTERACTION_PEER_UART_BAUD
     default 115200
     depends on INTERACTION_PEER_UART
 
+config INTERACTION_PEER_VOICE
+    bool "UART voice/chat sync from motion ESP32"
+    default y
+    depends on INTERACTION_PEER_UART
+
 config MSP3525_TOUCH_TEST
     bool "Touch button test UI (skip chat UI)"
     default n

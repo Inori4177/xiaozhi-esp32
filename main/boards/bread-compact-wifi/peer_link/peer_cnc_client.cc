@@ -38,8 +38,13 @@ static bool send_json(const char *json)
     if (json == nullptr) {
         return false;
     }
-    ESP_LOGD(TAG, "TX %s", json);
-    return peer_uart_link_send_line(json);
+    const bool ok = peer_uart_link_send_line(json);
+    if (ok) {
+        ESP_LOGI(TAG, "TX %s (peer_ready=%d)", json, s_peer_ready ? 1 : 0);
+    } else {
+        ESP_LOGW(TAG, "TX failed: %s", json);
+    }
+    return ok;
 }
 
 static bool send_cmd_gcode(const char *line)
@@ -111,6 +116,9 @@ static void on_peer_line(const char *line, void *user_data)
     const char *t = cJSON_IsString(type) ? type->valuestring : nullptr;
 
     if (t != nullptr && strcmp(t, "pong") == 0) {
+        if (!s_peer_ready) {
+            ESP_LOGI(TAG, "peer link ready (pong)");
+        }
         s_last_pong_us = esp_timer_get_time();
         s_peer_ready = true;
     } else if (t != nullptr && strcmp(t, "status") == 0) {
@@ -155,6 +163,9 @@ static void ping_task(void *arg)
             continue;
         }
         if (now - s_last_pong_us > 8000000LL) {
+            if (s_peer_ready) {
+                ESP_LOGW(TAG, "peer link timeout (no pong >8s)");
+            }
             s_peer_ready = false;
         }
     }
@@ -321,6 +332,8 @@ bool peer_cnc_client_has_suspended_job(void)
 void peer_cnc_client_on_ui_event(laser_ui_event_id_t id)
 {
     const float step = laser_ui_state_get_jog_step_mm();
+    ESP_LOGI(TAG, "ui event: %s (jog_step=%.1fmm, peer_ready=%d)",
+             laser_ui_event_name(id), static_cast<double>(step), s_peer_ready ? 1 : 0);
     switch (id) {
     case LASER_EVT_JOG_X_PLUS:
         peer_cnc_client_jog_axis_mm('X', true, step);
@@ -347,6 +360,7 @@ void peer_cnc_client_on_ui_event(laser_ui_event_id_t id)
         peer_cnc_client_apply_settings();
         break;
     default:
+        ESP_LOGW(TAG, "ui event not handled by peer: %s", laser_ui_event_name(id));
         break;
     }
 }
