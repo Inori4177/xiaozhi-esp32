@@ -40,7 +40,10 @@ public:
         ESP_LOGI("MotionController", "Initialized. Origin at (0,0)");
     }
 
-    void Execute(const std::string& gcode) {
+    float GetX() const { return current_x; }
+    float GetY() const { return current_y; }
+
+    void Execute(const std::string& gcode, bool return_to_origin = true) {
         if (!initialized) {
             ESP_LOGE("MotionController", "Not initialized");
             return;
@@ -138,6 +141,7 @@ public:
         }
 
         // 第二步：回到原点（直接构造 block，不走 Planner）
+        if (return_to_origin) {
         ESP_LOGI("MotionController", "Returning to origin from (%.2f, %.2f)...", last_x, last_y);
         {
             float dx = 0.0f - last_x;
@@ -167,6 +171,10 @@ public:
         current_x = 0.0f;
         current_y = 0.0f;
         ESP_LOGI("MotionController", "Done. Position: (0, 0)");
+        } else {
+            current_x = last_x;
+            current_y = last_y;
+        }
     }
 };
 

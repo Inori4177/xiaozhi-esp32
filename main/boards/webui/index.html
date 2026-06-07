@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Laser Interaction WebUI</title>
+  <title>激光 UI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet">
@@ -12,189 +12,199 @@
 <body>
   <header class="topbar">
     <div class="brand">
-      <h1>Laser UI</h1>
-      <span id="conn_status" class="conn-pill">Connecting...</span>
+      <h1>激光 UI</h1>
+      <div class="status-pills">
+        <span id="conn_status" class="conn-pill">连接中…</span>
+        <span id="peer_status" class="conn-pill">运动 MCU …</span>
+        <span id="voice_status" class="conn-pill">语音 …</span>
+      </div>
     </div>
   </header>
 
-  <section id="machine_status" class="machine-status" aria-live="polite">
-    <div class="status-grid">
-      <div class="status-cell">
-        <span class="label">工作状态</span>
-        <strong id="st_state">—</strong>
-      </div>
-      <div class="status-cell">
-        <span class="label">剩余时间</span>
-        <strong id="st_eta">—</strong>
-      </div>
-      <div class="status-cell wide">
-        <span class="label">当前文件</span>
-        <strong id="st_file" class="mono">—</strong>
-      </div>
+  <section id="machine_status" class="machine-status status-ribbon" aria-live="polite">
+    <div class="status-row">
+      <strong id="st_state" class="status-state">—</strong>
+      <span id="st_file" class="status-file mono">—</span>
+      <span class="status-meta">
+        <span id="st_eta" class="status-eta">—</span>
+        <span id="st_pct" class="status-pct">0%</span>
+      </span>
     </div>
     <div class="progress-wrap">
-      <div class="progress-meta">
-        <span id="st_pct">0%</span>
-      </div>
       <div class="progress-track">
         <div id="st_bar" class="progress-bar"></div>
       </div>
     </div>
   </section>
 
+  <div id="peer_warn" class="peer-warn">运动 MCU 未连接 — CNC 控制已禁用，请检查 UART 与 jdil 固件。</div>
+
   <nav class="tabs">
     <button type="button" data-tab="terminal" class="active">终端</button>
     <button type="button" data-tab="wifi">WiFi</button>
     <button type="button" data-tab="jog">点动</button>
-    <button type="button" data-tab="files">LocalFS</button>
+    <button type="button" data-tab="files">本地文件</button>
     <button type="button" data-tab="gcodegen">图/文 G-code</button>
     <button type="button" data-tab="settings">设置</button>
   </nav>
 
   <main class="panels">
     <section id="panel_terminal" class="panel active">
-      <pre id="log"></pre>
-      <div class="cmd_row">
-        <input type="text" id="custom_cmd_txt" placeholder="G-code 或 [ESP700]/file.gcode" autocomplete="off">
-        <button type="button" class="ctrl primary" id="send_btn">发送</button>
-      </div>
-      <div class="transport_row">
-        <button type="button" class="ctrl transport-btn run-btn" id="cnc_run_btn" title="运行 / 继续雕刻">
-          <span class="transport-icon" aria-hidden="true">▶</span> 运行
-        </button>
-        <button type="button" class="ctrl transport-btn pause-btn" id="cnc_pause_btn" title="暂停：关激光并停止运动">
-          <span class="transport-icon" aria-hidden="true">⏸</span> 暂停
-        </button>
+      <div class="panel-inner">
+        <pre id="log"></pre>
+        <div class="cmd_row">
+          <input type="text" id="custom_cmd_txt" placeholder="G-code 或 [ESP700]/file.gcode" autocomplete="off">
+          <button type="button" class="ctrl primary cnc-action" id="send_btn">发送</button>
+        </div>
+        <div class="transport_row">
+          <button type="button" class="ctrl transport-btn run-btn cnc-action" id="cnc_run_btn" title="运行 / 继续雕刻">
+            <span class="transport-icon" aria-hidden="true">▶</span> 运行
+          </button>
+          <button type="button" class="ctrl transport-btn pause-btn cnc-action" id="cnc_pause_btn" title="暂停：关激光并停止运动">
+            <span class="transport-icon" aria-hidden="true">⏸</span> 暂停
+          </button>
+        </div>
       </div>
     </section>
 
     <section id="panel_jog" class="panel">
-      <div class="jog-toolbar">
-        <label class="field-inline">
-          <span>步距</span>
-          <select id="jog_step_mm">
-            <option value="1">1 mm</option>
-            <option value="2">2 mm</option>
-            <option value="3">3 mm</option>
-            <option value="4">4 mm</option>
-            <option value="5">5 mm</option>
-          </select>
-        </label>
-      </div>
-      <div class="jog_grid">
-        <span></span>
-        <button type="button" class="jog-btn" data-jog="Y1">Y+</button>
-        <span></span>
-        <button type="button" class="jog-btn" data-jog="X-1">X−</button>
-        <button type="button" class="jog-btn home" id="jog_home">回零</button>
-        <button type="button" class="jog-btn" data-jog="X1">X+</button>
-        <span></span>
-        <button type="button" class="jog-btn" data-jog="Y-1">Y−</button>
-        <span></span>
-      </div>
-
-      <details class="acc jog-pick" open>
-        <summary>调整位置 · 选定雕刻起点（42×42 mm）</summary>
-        <div class="pick-wrap">
-          <div id="pick_map" class="pick-map">
-            <div class="work-bounds"></div>
-            <div id="pick_head" class="pick-head" title="激光头当前位置"></div>
-            <div id="pick_cursor" class="pick-cursor" title="拖动设定起点"></div>
-          </div>
-          <div class="pick-readout">
-            <span>光标 <strong id="pick_cx">0.0</strong> / <strong id="pick_cy">0.0</strong> mm</span>
-            <span>机头 <strong id="pick_hx">0.0</strong> / <strong id="pick_hy">0.0</strong> mm</span>
-          </div>
-          <div class="btn-row">
-            <button type="button" class="ctrl" id="pick_reset_btn">复位</button>
-            <button type="button" class="ctrl primary" id="pick_confirm_btn">确定并移动</button>
-          </div>
-          <p class="hint">坐标原点 (0,0) 在工作区<strong>左下角</strong>。拖动十字到雕刻区域内，松手后点「确定」— 与屏幕「选定」页一致，机头将移动到该点作为作业原点参考。</p>
-          <div id="pick_status" class="hint"></div>
+      <div class="panel-inner">
+        <div class="step-seg" id="jog_step_seg">
+          <button type="button" data-step="1" class="active">1 mm</button>
+          <button type="button" data-step="2">2 mm</button>
+          <button type="button" data-step="3">3 mm</button>
+          <button type="button" data-step="4">4 mm</button>
+          <button type="button" data-step="5">5 mm</button>
         </div>
-      </details>
+        <select id="jog_step_mm" class="hide_it" aria-hidden="true">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+        <div class="jog_grid">
+          <span></span>
+          <button type="button" class="jog-btn cnc-action" data-jog="Y1">Y+</button>
+          <span></span>
+          <button type="button" class="jog-btn cnc-action" data-jog="X-1">X−</button>
+          <button type="button" class="jog-btn home cnc-action" id="jog_home">回零</button>
+          <button type="button" class="jog-btn cnc-action" data-jog="X1">X+</button>
+          <span></span>
+          <button type="button" class="jog-btn cnc-action" data-jog="Y-1">Y−</button>
+          <span></span>
+        </div>
+
+        <details class="acc jog-pick" open>
+          <summary>调整位置 · 选定雕刻起点（42×42 mm）</summary>
+          <div class="pick-wrap">
+            <div id="pick_map" class="pick-map">
+              <div class="work-bounds"></div>
+              <div id="pick_head" class="pick-head" title="激光头当前位置"></div>
+              <div id="pick_cursor" class="pick-cursor" title="拖动设定起点"></div>
+            </div>
+            <div class="pick-readout">
+              <span>光标 <strong id="pick_cx">0.0</strong> / <strong id="pick_cy">0.0</strong> mm</span>
+              <span>机头 <strong id="pick_hx">0.0</strong> / <strong id="pick_hy">0.0</strong> mm</span>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="ctrl cnc-action" id="pick_reset_btn">复位</button>
+              <button type="button" class="ctrl primary cnc-action" id="pick_confirm_btn">确定并移动</button>
+            </div>
+            <p class="hint">坐标原点 (0,0) 在工作区<strong>左下角</strong>。拖动十字到雕刻区域内，松手后点「确定」— 与屏幕「选定」页一致。</p>
+            <div id="pick_status" class="hint"></div>
+          </div>
+        </details>
+      </div>
     </section>
 
     <section id="panel_wifi" class="panel">
-      <button type="button" class="ctrl" onclick="wifi_scan()">扫描 AP</button>
-      <pre id="wifi_scan_result" class="scroll-box"></pre>
-      <label>SSID <input type="text" id="wifi_ssid" autocomplete="username"></label>
-      <label>密码 <input type="password" id="wifi_pass" autocomplete="current-password"></label>
-      <button type="button" class="ctrl" onclick="wifi_connect()">连接 STA</button>
+      <div class="panel-inner">
+        <button type="button" class="ctrl" onclick="wifi_scan()">扫描 AP</button>
+        <pre id="wifi_scan_result" class="scroll-box"></pre>
+        <label>SSID <input type="text" id="wifi_ssid" autocomplete="username"></label>
+        <label>密码 <input type="password" id="wifi_pass" autocomplete="current-password"></label>
+        <button type="button" class="ctrl" onclick="wifi_connect()">连接 STA</button>
+      </div>
     </section>
 
     <section id="panel_files" class="panel">
-      <p class="hint">列表为设备 <code>/localfs</code> 分区中的真实文件；<strong>删除</strong> 会从下位机存储中永久移除。</p>
-      <div id="files_status" class="files-meta"></div>
-      <div class="files-actions">
-        <input type="file" id="files_input_file">
-        <button type="button" class="ctrl" onclick="files_upload_selected()">上传</button>
-        <button type="button" class="ctrl" onclick="files_refreshFiles(files_currentPath)">刷新</button>
+      <div class="panel-inner">
+        <p class="hint">列表为设备 <code>/localfs</code> 分区中的真实文件；<strong>删除</strong> 会从下位机存储中永久移除。</p>
+        <div id="files_status" class="files-meta"></div>
+        <div class="files-actions">
+          <input type="file" id="files_input_file">
+          <button type="button" class="ctrl" onclick="files_upload_selected()">上传</button>
+          <button type="button" class="ctrl" onclick="files_refreshFiles(files_currentPath)">刷新</button>
+        </div>
+        <table class="files">
+          <thead><tr><th>类型</th><th>名称</th><th>大小</th><th>操作</th></tr></thead>
+          <tbody id="file_list"></tbody>
+        </table>
       </div>
-      <table class="files">
-        <thead><tr><th>类型</th><th>名称</th><th>大小</th><th>操作</th></tr></thead>
-        <tbody id="file_list"></tbody>
-      </table>
     </section>
 
     <section id="panel_gcodegen" class="panel gcodegen">
-      <p class="hint">工作区 42×42 mm；成品超出时将拒绝生成。G-code 上限约 120KB，线距过小会提示增大。</p>
-      <fieldset>
-        <label>模式
-          <select id="gcodegen_mode" onchange="gcodegen_onModeChange()">
-            <option value="image">图片</option>
-            <option value="text">文字</option>
-          </select>
-        </label>
-        <div id="gcodegen_image_group">
-          <label>图片 <input type="file" id="gcodegen_image_input" accept=".png,.jpg,.jpeg,.bmp,.gif,.webp" onchange="gcodegen_onImageSelected(event)"></label>
-        </div>
-        <div id="gcodegen_text_group" class="hide_it">
-          <label>文字 <textarea id="gcodegen_text_input" rows="3" placeholder="单行建议；多行会加高成品"></textarea></label>
-          <label>字号 px <input type="number" id="gcodegen_font_size" value="48" min="8" max="120" step="1"></label>
-        </div>
-        <label>成品宽度 mm <input type="number" id="gcodegen_width_mm" value="30" min="1" max="42" step="0.1"></label>
-        <label>扫描线距 mm
-          <input type="number" id="gcodegen_line_spacing_mm" value="0.30" min="0.08" max="1.5" step="0.05">
-        </label>
-        <p class="hint gcodegen-param-hint">线距越小填充越密；预览按此线距重采样，与雕刻一致。</p>
-        <label>阈值 <input type="number" id="gcodegen_threshold" value="128" min="0" max="255" title="灰度分界：低于为黑(刻)，高于为白(不刻)"></label>
-        <label>功率 S <input type="number" id="gcodegen_power" value="500" min="1" max="1000" title="M3 激光 PWM，500≈50%"></label>
-        <label>工作进给 <input type="number" id="gcodegen_feed_work" value="800" min="1" title="G1 雕刻时的 F (mm/min)"></label>
-        <label>空程进给 <input type="number" id="gcodegen_feed_travel" value="3000" min="1" title="G0 空走时的 F (mm/min)"></label>
-        <label>文件名 <input type="text" id="gcodegen_filename" value="image.gcode"></label>
-        <label><input type="checkbox" id="gcodegen_invert"> 反色</label>
-        <canvas id="gcodegen_work_canvas" class="hide_it" width="1" height="1"></canvas>
-        <canvas id="gcodegen_preview" width="200" height="150"></canvas>
-        <div class="btn-row">
-          <button type="button" class="ctrl" onclick="gcodegen_preview()">预览</button>
-          <button type="button" class="ctrl" onclick="gcodegen_generateAndDownload()">下载</button>
-          <button type="button" class="ctrl" onclick="gcodegen_uploadOnly()">上传</button>
-          <button type="button" class="ctrl primary" onclick="gcodegen_runNow()">上传并运行</button>
-        </div>
-        <div id="gcodegen_status"></div>
-      </fieldset>
+      <div class="panel-inner">
+        <p class="hint">工作区 42×42 mm；成品超出时将拒绝生成。G-code 上限约 120KB。</p>
+        <fieldset>
+          <label>模式
+            <select id="gcodegen_mode" onchange="gcodegen_onModeChange()">
+              <option value="image">图片</option>
+              <option value="text">文字</option>
+            </select>
+          </label>
+          <div id="gcodegen_image_group">
+            <label>图片 <input type="file" id="gcodegen_image_input" accept=".png,.jpg,.jpeg,.bmp,.gif,.webp" onchange="gcodegen_onImageSelected(event)"></label>
+          </div>
+          <div id="gcodegen_text_group" class="hide_it">
+            <label>文字 <textarea id="gcodegen_text_input" rows="3" placeholder="单行建议；多行会加高成品"></textarea></label>
+            <label>字号 px <input type="number" id="gcodegen_font_size" value="48" min="8" max="120" step="1"></label>
+          </div>
+          <label>成品宽度 mm <input type="number" id="gcodegen_width_mm" value="30" min="1" max="42" step="0.1"></label>
+          <label>扫描线距 mm
+            <input type="number" id="gcodegen_line_spacing_mm" value="0.30" min="0.08" max="1.5" step="0.05">
+          </label>
+          <label>阈值 <input type="number" id="gcodegen_threshold" value="128" min="0" max="255"></label>
+          <label>功率 S <input type="number" id="gcodegen_power" value="500" min="1" max="1000"></label>
+          <label>工作进给 <input type="number" id="gcodegen_feed_work" value="800" min="1"></label>
+          <label>空程进给 <input type="number" id="gcodegen_feed_travel" value="3000" min="1"></label>
+          <label>文件名 <input type="text" id="gcodegen_filename" value="image.gcode"></label>
+          <label><input type="checkbox" id="gcodegen_invert"> 反色</label>
+          <canvas id="gcodegen_work_canvas" class="hide_it" width="1" height="1"></canvas>
+          <canvas id="gcodegen_preview" width="200" height="150"></canvas>
+          <div class="btn-row">
+            <button type="button" class="ctrl" onclick="gcodegen_preview()">预览</button>
+            <button type="button" class="ctrl" onclick="gcodegen_generateAndDownload()">下载</button>
+            <button type="button" class="ctrl" onclick="gcodegen_uploadOnly()">上传</button>
+            <button type="button" class="ctrl primary cnc-action" onclick="gcodegen_runNow()">上传并运行</button>
+          </div>
+          <div id="gcodegen_status"></div>
+        </fieldset>
+      </div>
     </section>
 
     <section id="panel_settings" class="panel settings-panel">
-      <details class="acc acc-select" open>
-        <summary>激光功率</summary>
-        <div class="settings-field">
-          <select id="set_power_pct" aria-label="激光功率"></select>
-          <p class="settings-current">当前 <strong id="set_power_disp">50%</strong></p>
-        </div>
-      </details>
+      <div class="panel-inner">
+        <details class="acc acc-select" open>
+          <summary>激光功率</summary>
+          <div class="settings-field">
+            <select id="set_power_pct" aria-label="激光功率"></select>
+            <p class="settings-current">当前 <strong id="set_power_disp">50%</strong></p>
+          </div>
+        </details>
 
-      <details class="acc acc-select" open>
-        <summary>雕刻速度</summary>
-        <div class="settings-field">
-          <select id="set_speed_pct" aria-label="雕刻速度"></select>
-          <p class="settings-current">当前 <strong id="set_speed_disp">100%</strong></p>
-        </div>
-      </details>
+        <details class="acc acc-select" open>
+          <summary>雕刻速度</summary>
+          <div class="settings-field">
+            <select id="set_speed_pct" aria-label="雕刻速度"></select>
+            <p class="settings-current">当前 <strong id="set_speed_disp">100%</strong></p>
+          </div>
+        </details>
 
-      <button type="button" class="ctrl primary" id="settings_apply_btn">应用设置到下位机</button>
-      <div id="settings_status" class="hint"></div>
+        <button type="button" class="ctrl primary cnc-action" id="settings_apply_btn">应用设置到下位机</button>
+        <div id="settings_status" class="hint"></div>
+      </div>
     </section>
   </main>
 

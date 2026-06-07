@@ -137,6 +137,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
         }
     }
 
+#if !CONFIG_MSP3525_LASER_UI
     // Update time
     if (app.GetDeviceState() == kDeviceStateIdle) {
         if (last_status_update_time_ + std::chrono::seconds(10) < std::chrono::system_clock::now()) {
@@ -153,6 +154,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
             }
         }
     }
+#endif
 
     esp_pm_lock_acquire(pm_lock_);
     // Update battery icon

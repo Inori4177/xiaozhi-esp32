@@ -17,6 +17,25 @@
 #include "board.h"
 #include "boards/common/board_custom_ui.h"
 
+#if CONFIG_MSP3525_LASER_UI
+#include "laser_ui_layout.h"
+
+static void laser_ui_layout_bottom_chrome(lv_obj_t *bottom_bar, lv_obj_t *chat_label)
+{
+    if (bottom_bar != nullptr) {
+        lv_obj_set_size(bottom_bar, UI_BOTTOM_BAR_W, UI_BOTTOM_BAR_H);
+        lv_obj_align(bottom_bar, LV_ALIGN_BOTTOM_MID, UI_BOTTOM_BAR_OFS_X, UI_BOTTOM_BAR_OFS_Y);
+    }
+    if (chat_label != nullptr) {
+        lv_obj_set_width(chat_label, UI_BOTTOM_TEXT_W);
+        if (UI_BOTTOM_TEXT_H > 0) {
+            lv_obj_set_height(chat_label, UI_BOTTOM_TEXT_H);
+        }
+        lv_obj_align(chat_label, LV_ALIGN_CENTER, UI_BOTTOM_TEXT_OFS_X, UI_BOTTOM_TEXT_OFS_Y);
+    }
+}
+#endif
+
 #if CONFIG_BOARD_TYPE_ESP32S3_MSP3525_LCD_3_5
 #include "boards/esp32s3-msp3525-lcd-3.5/config.h"
 #elif CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
@@ -977,14 +996,22 @@ void LcdDisplay::SetupUI() {
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(status_label_, lvgl_theme->text_color(), 0);
+#if CONFIG_MSP3525_LASER_UI
+    lv_label_set_text(status_label_, UI_CHROME_STATUS_TEXT);
+#else
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
+#endif
     lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
 
 #if CONFIG_USE_MULTILINE_CHAT_MESSAGE
     /* Bottom bar - auto height, grows upward with wrapped text */
     bottom_bar_ = lv_obj_create(screen);
+#if CONFIG_MSP3525_LASER_UI
+    lv_obj_set_size(bottom_bar_, UI_BOTTOM_BAR_W, UI_BOTTOM_BAR_H);
+#else
     lv_obj_set_width(bottom_bar_, LV_HOR_RES);
     lv_obj_set_height(bottom_bar_, LV_SIZE_CONTENT);
+#endif
     lv_obj_set_style_radius(bottom_bar_, 0, 0);
     lv_obj_set_style_bg_color(bottom_bar_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_bg_opa(bottom_bar_, LV_OPA_50, 0);
@@ -992,21 +1019,40 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(bottom_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_border_width(bottom_bar_, 0, 0);
     lv_obj_set_scrollbar_mode(bottom_bar_, LV_SCROLLBAR_MODE_OFF);
+#if CONFIG_MSP3525_LASER_UI
+    lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, UI_BOTTOM_BAR_OFS_X, UI_BOTTOM_BAR_OFS_Y);
+#else
     lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
+#endif
 
     /* chat_message_label_ placed in bottom_bar_, multiline wrapped display */
     chat_message_label_ = lv_label_create(bottom_bar_);
     lv_label_set_text(chat_message_label_, "");
+#if CONFIG_MSP3525_LASER_UI
+    lv_obj_set_width(chat_message_label_, UI_BOTTOM_TEXT_W);
+#else
     lv_obj_set_width(chat_message_label_, LV_HOR_RES - lvgl_theme->spacing(8));
+#endif
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
+#if CONFIG_MSP3525_LASER_UI
+    if (UI_BOTTOM_TEXT_H > 0) {
+        lv_obj_set_height(chat_message_label_, UI_BOTTOM_TEXT_H);
+    }
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, UI_BOTTOM_TEXT_OFS_X, UI_BOTTOM_TEXT_OFS_Y);
+#else
     lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+#endif
     lv_obj_add_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);  // Hide until there is content
 #else
     /* Top layer: Bottom bar - fixed height at bottom */
     bottom_bar_ = lv_obj_create(screen);
+#if CONFIG_MSP3525_LASER_UI
+    lv_obj_set_size(bottom_bar_, UI_BOTTOM_BAR_W, UI_BOTTOM_BAR_H);
+#else
     lv_obj_set_size(bottom_bar_, LV_HOR_RES, text_font->line_height + lvgl_theme->spacing(8));
+#endif
     lv_obj_set_style_radius(bottom_bar_, 0, 0);
     lv_obj_set_style_bg_color(bottom_bar_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_text_color(bottom_bar_, lvgl_theme->text_color(), 0);
@@ -1015,16 +1061,31 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_right(bottom_bar_, lvgl_theme->spacing(4), 0);
     lv_obj_set_style_border_width(bottom_bar_, 0, 0);
     lv_obj_set_scrollbar_mode(bottom_bar_, LV_SCROLLBAR_MODE_OFF);
+#if CONFIG_MSP3525_LASER_UI
+    lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, UI_BOTTOM_BAR_OFS_X, UI_BOTTOM_BAR_OFS_Y);
+#else
     lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
+#endif
 
     /* chat_message_label_ placed in bottom_bar_, single-line horizontal scroll */
     chat_message_label_ = lv_label_create(bottom_bar_);
     lv_label_set_text(chat_message_label_, "");
+#if CONFIG_MSP3525_LASER_UI
+    lv_obj_set_width(chat_message_label_, UI_BOTTOM_TEXT_W);
+#else
     lv_obj_set_width(chat_message_label_, LV_HOR_RES - lvgl_theme->spacing(8));
+#endif
     lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
+#if CONFIG_MSP3525_LASER_UI
+    if (UI_BOTTOM_TEXT_H > 0) {
+        lv_obj_set_height(chat_message_label_, UI_BOTTOM_TEXT_H);
+    }
+    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, UI_BOTTOM_TEXT_OFS_X, UI_BOTTOM_TEXT_OFS_Y);
+#else
     lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0);
+#endif
 
     // Start scrolling after a delay (short text won't scroll)
     static lv_anim_t a;
@@ -1106,7 +1167,9 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
             lv_obj_remove_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
         }
     }
-#if CONFIG_USE_MULTILINE_CHAT_MESSAGE
+#if CONFIG_MSP3525_LASER_UI
+    laser_ui_layout_bottom_chrome(bottom_bar_, chat_message_label_);
+#elif CONFIG_USE_MULTILINE_CHAT_MESSAGE
     // Re-align bottom_bar_ after text change so it stays anchored to the bottom
     // as its height adapts to the wrapped content.
     if (bottom_bar_ != nullptr) {

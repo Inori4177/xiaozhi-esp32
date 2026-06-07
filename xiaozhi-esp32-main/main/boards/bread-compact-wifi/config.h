@@ -2,6 +2,7 @@
 #define _BOARD_CONFIG_H_
 
 #include <driver/gpio.h>
+#include <driver/uart.h>
 
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
@@ -55,5 +56,11 @@
 
 // A MCP Test: Control a lamp
 #define LAMP_GPIO GPIO_NUM_18
+
+#if CONFIG_MOTION_PEER_UART
+#define PEER_UART_NUM           UART_NUM_1
+#define PEER_UART_TX_PIN        GPIO_NUM_17
+#define PEER_UART_RX_PIN        GPIO_NUM_9
+#endif
 
 #endif // _BOARD_CONFIG_H_

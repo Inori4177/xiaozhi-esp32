@@ -247,31 +247,44 @@ if(CONFIG_IDF_TARGET_ESP32S3)
     list(APPEND SOURCES "boards/common/esp32_camera.cc")
 endif()
 
-set(MAIN_PRIV_REQUIRES_EXTRA "")
+if(CONFIG_MOTION_PEER_UART)
+    list(APPEND SOURCES
+        "boards/bread-compact-wifi/peer_link/peer_uart_link.cc"
+        "boards/bread-compact-wifi/peer_link/peer_cnc_slave.cc")
+    list(APPEND INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/peer_link)
+endif()
+
+set(MAIN_PRIV_REQUIRES
+    esp_pm
+    esp_psram
+    esp_netif
+    esp_driver_gpio
+    esp_driver_uart
+    esp_driver_spi
+    esp_driver_i2c
+    esp_driver_i2s
+    esp_driver_jpeg
+    esp_driver_ppa
+    esp_app_format
+    app_update
+    spi_flash
+    console
+    efuse
+    bt
+    fatfs
+)
+
+if(CONFIG_MOTION_PEER_UART)
+    list(APPEND MAIN_PRIV_REQUIRES json)
+endif()
 
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
-                    PRIV_REQUIRES
-                        esp_pm
-                        esp_psram
-                        esp_netif
-                        esp_driver_gpio
-                        esp_driver_uart
-                        esp_driver_spi
-                        esp_driver_i2c
-                        esp_driver_i2s
-                        esp_driver_jpeg
-                        esp_driver_ppa
-                        esp_app_format
-                        app_update
-                        spi_flash
-                        console
-                        efuse
-                        bt
-                        fatfs
-                        ${MAIN_PRIV_REQUIRES_EXTRA}
+                    PRIV_REQUIRES ${MAIN_PRIV_REQUIRES}
                     )
 
 # Use target_compile_definitions to define BOARD_TYPE, BOARD_NAME

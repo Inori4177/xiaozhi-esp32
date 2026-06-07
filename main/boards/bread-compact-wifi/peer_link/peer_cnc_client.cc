@@ -3,6 +3,7 @@
 
 #include "../laser_ui_state.h"
 #include "boards/webui/webui_log.h"
+#include "boards/webui/webui_ws.h"
 
 #include <cJSON.h>
 #include <cstdio>

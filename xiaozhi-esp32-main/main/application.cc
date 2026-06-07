@@ -17,7 +17,33 @@
 #include <arpa/inet.h>
 #include <font_awesome.h>
 
+#if CONFIG_MOTION_PEER_UART
+#include "peer_link/peer_voice_tx.h"
+#endif
+
 #define TAG "Application"
+
+#if CONFIG_MOTION_PEER_UART
+static void peer_push_voice_state(DeviceState state)
+{
+    switch (state) {
+    case kDeviceStateIdle:
+        peer_voice_tx_state("idle");
+        break;
+    case kDeviceStateConnecting:
+        peer_voice_tx_state("connecting");
+        break;
+    case kDeviceStateListening:
+        peer_voice_tx_state("listening");
+        break;
+    case kDeviceStateSpeaking:
+        peer_voice_tx_state("speaking");
+        break;
+    default:
+        break;
+    }
+}
+#endif
 
 
 Application::Application() {
@@ -544,6 +570,9 @@ void Application::InitializeProtocol() {
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
                     Schedule([display, message = std::string(text->valuestring)]() {
                         display->SetChatMessage("assistant", message.c_str());
+#if CONFIG_MOTION_PEER_UART
+                        peer_voice_tx_chat("assistant", message.c_str());
+#endif
                     });
                 }
             }
@@ -553,6 +582,9 @@ void Application::InitializeProtocol() {
                 ESP_LOGI(TAG, ">> %s", text->valuestring);
                 Schedule([display, message = std::string(text->valuestring)]() {
                     display->SetChatMessage("user", message.c_str());
+#if CONFIG_MOTION_PEER_UART
+                    peer_voice_tx_chat("user", message.c_str());
+#endif
                 });
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
@@ -560,6 +592,9 @@ void Application::InitializeProtocol() {
             if (cJSON_IsString(emotion)) {
                 Schedule([display, emotion_str = std::string(emotion->valuestring)]() {
                     display->SetEmotion(emotion_str.c_str());
+#if CONFIG_MOTION_PEER_UART
+                    peer_voice_tx_emotion(emotion_str.c_str());
+#endif
                 });
             }
         } else if (strcmp(type->valuestring, "mcp") == 0) {
@@ -851,6 +886,9 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
 
 void Application::HandleStateChangedEvent() {
     DeviceState new_state = state_machine_.GetState();
+#if CONFIG_MOTION_PEER_UART
+    peer_push_voice_state(new_state);
+#endif
     clock_ticks_ = 0;
 
     auto& board = Board::GetInstance();

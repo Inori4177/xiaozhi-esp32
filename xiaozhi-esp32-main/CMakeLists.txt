@@ -11,8 +11,3 @@ idf_build_set_property(MINIMAL_BUILD ON)
 
 set(PROJECT_VER "2.2.5")
 project(xiaozhi)
-
-if(CONFIG_MOTION_PEER_UART)
-    idf_component_get_property(main_lib main COMPONENT_LIB)
-    target_link_libraries(${main_lib} PRIVATE idf::peer_link)
-endif()

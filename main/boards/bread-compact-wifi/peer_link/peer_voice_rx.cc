@@ -1,5 +1,6 @@
 #include "peer_voice_rx.h"
 #include "peer_uart_mux.h"
+#include "peer_voice_state.h"
 #include "peer_voice_ui.h"
 
 #include <sdkconfig.h>
@@ -47,6 +48,7 @@ static void on_voice_line(const char *line, void *user_data)
     } else if (t != nullptr && strcmp(t, "voice_state") == 0) {
         const cJSON *state = cJSON_GetObjectItem(root, "state");
         if (cJSON_IsString(state)) {
+            peer_voice_state_set(state->valuestring);
             peer_voice_ui_show_voice_state(state->valuestring);
         }
     }

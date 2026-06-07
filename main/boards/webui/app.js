@@ -4,23 +4,49 @@ var ws_source = null;
 var websocket_started = false;
 var files_currentPath = "/";
 var status_timer = null;
+var peer_ready = false;
 
 function $(id) { return document.getElementById(id); }
+
+function set_pill(id, text, ok) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove("ok", "err", "warn");
+    if (ok === true) el.classList.add("ok");
+    else if (ok === false) el.classList.add("err");
+    else if (ok === "warn") el.classList.add("warn");
+}
+
+function set_conn_status(text, ok) {
+    set_pill("conn_status", text, ok);
+}
+
+var VOICE_LABELS = {
+    idle: "语音 · 空闲",
+    connecting: "语音 · 连接中",
+    listening: "语音 · 聆听",
+    speaking: "语音 · 播报"
+};
+
+function voice_label(state) {
+    if (!state) return "语音 · —";
+    return VOICE_LABELS[state] || ("语音 · " + state);
+}
+
+function set_cnc_enabled(enabled) {
+    document.querySelectorAll(".cnc-action").forEach(function (btn) {
+        btn.disabled = !enabled;
+    });
+    var warn = $("peer_warn");
+    if (warn) warn.classList.toggle("visible", !enabled);
+}
 
 function log_append(msg) {
     var el = $("log");
     if (!el) return;
     el.textContent += msg + (msg.endsWith("\n") ? "" : "\n");
     el.scrollTop = el.scrollHeight;
-}
-
-function set_conn_status(text, ok) {
-    var el = $("conn_status");
-    if (!el) return;
-    el.textContent = text;
-    el.classList.remove("ok", "err");
-    if (ok === true) el.classList.add("ok");
-    if (ok === false) el.classList.add("err");
 }
 
 function format_eta(sec, has_eta) {
@@ -38,7 +64,10 @@ function apply_machine_status(st) {
     var fileEl = $("st_file");
     var pctEl = $("st_pct");
     var barEl = $("st_bar");
-    if (stateEl) stateEl.textContent = st.state || "—";
+    if (stateEl) {
+        stateEl.textContent = st.state || "—";
+        stateEl.classList.toggle("running", st.state === "雕刻中" || st.state_id === 1);
+    }
     if (etaEl) etaEl.textContent = format_eta(st.eta_sec, st.has_eta);
     if (fileEl) {
         var fn = (st.file && st.file !== "-") ? st.file : "—";
@@ -47,6 +76,18 @@ function apply_machine_status(st) {
     var pct = Math.max(0, Math.min(100, st.progress || 0));
     if (pctEl) pctEl.textContent = pct + "%";
     if (barEl) barEl.style.width = pct + "%";
+
+    if (typeof st.peer_ready === "boolean") {
+        peer_ready = st.peer_ready;
+        set_pill("peer_status", peer_ready ? "运动 MCU · 在线" : "运动 MCU · 离线", peer_ready);
+        set_cnc_enabled(peer_ready);
+    }
+    if (st.voice_state) {
+        var vs = st.voice_state;
+        var vok = (vs === "idle" || vs === "connecting") ? true : "warn";
+        if (vs === "listening" || vs === "speaking") vok = "warn";
+        set_pill("voice_status", voice_label(vs), vok);
+    }
 
     if (typeof settings_apply_from_status === "function") {
         settings_apply_from_status(st);
@@ -89,6 +130,10 @@ function http_command(cmd, onok) {
 }
 
 function SendCustomCommand() {
+    if (!peer_ready) {
+        log_append("!! 运动 MCU 未连接");
+        return;
+    }
     var input = $("custom_cmd_txt");
     if (!input) return;
     var cmd = input.value.trim();
@@ -102,6 +147,7 @@ function SendCustomCommand() {
 }
 
 function SendJog(axis, sign) {
+    if (!peer_ready) return;
     var step = parseFloat(($("jog_step_mm") && $("jog_step_mm").value) || "1") || 1;
     var delta = sign < 0 ? -step : step;
     var axisPart = axis + delta;
@@ -124,16 +170,16 @@ function startSocket() {
     ws_source = new WebSocket(url);
     ws_source.onopen = function () {
         websocket_started = true;
-        set_conn_status("已连接", true);
+        set_conn_status("浏览器 · 已连接", true);
         log_append("--- WebSocket open ---");
     };
     ws_source.onclose = function () {
         websocket_started = false;
-        set_conn_status("已断开", false);
+        set_conn_status("浏览器 · 已断开", false);
         setTimeout(startSocket, 3000);
     };
     ws_source.onerror = function () {
-        set_conn_status("连接错误", false);
+        set_conn_status("浏览器 · 错误", false);
     };
     ws_source.onmessage = function (e) {
         log_append("<< " + e.data);
@@ -141,21 +187,24 @@ function startSocket() {
 }
 
 function InitUI() {
-    set_conn_status("初始化…", null);
+    set_conn_status("浏览器 · 初始化…", null);
+    set_pill("peer_status", "运动 MCU · …", null);
+    set_pill("voice_status", "语音 · …", null);
+    set_cnc_enabled(false);
     fetch("/command?commandText=" + encodeURIComponent("[ESP800]"))
         .then(function (r) { return r.text(); })
         .then(function () {
             websocket_IP = location.hostname;
             websocket_port = parseInt(location.port || "80", 10);
             startSocket();
-            set_conn_status("就绪", true);
+            set_conn_status("浏览器 · 就绪", true);
             files_refreshFiles("/");
             poll_status();
             if (status_timer) clearInterval(status_timer);
             status_timer = setInterval(poll_status, 800);
         })
         .catch(function (e) {
-            set_conn_status("初始化失败", false);
+            set_conn_status("浏览器 · 初始化失败", false);
             log_append("!! " + e.message);
         });
 }
@@ -404,7 +453,12 @@ function settings_apply_from_status(st) {
         if (speed) speed.value = String(st.speed_pct);
         if (jog) {
             var step = Math.round(st.jog_step_mm || 1);
-            if (step >= 1 && step <= 5) jog.value = String(step);
+            if (step >= 1 && step <= 5) {
+                jog.value = String(step);
+                document.querySelectorAll("#jog_step_seg button").forEach(function (b) {
+                    b.classList.toggle("active", parseInt(b.dataset.step, 10) === step);
+                });
+            }
         }
         settings_update_displays();
     }
@@ -477,6 +531,10 @@ function pick_confirm() {
 var cnc_transport_busy = false;
 
 function cnc_post_action(path, label) {
+    if (!peer_ready) {
+        log_append("!! 运动 MCU 未连接");
+        return Promise.resolve();
+    }
     if (cnc_transport_busy) return Promise.resolve();
     cnc_transport_busy = true;
     return fetch(path, { method: "POST" })
@@ -577,12 +635,35 @@ function settings_init() {
     bind_setting_select("set_speed_pct", "speed_pct");
 
     var jogSel = pick_el("jog_step_mm");
+    var jogSeg = document.getElementById("jog_step_seg");
+    if (jogSeg) {
+        jogSeg.querySelectorAll("button").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var step = parseInt(btn.dataset.step, 10);
+                if (jogSel) jogSel.value = String(step);
+                jogSeg.querySelectorAll("button").forEach(function (b) {
+                    b.classList.toggle("active", b === btn);
+                });
+                fetch("/settings", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ jog_step_mm: step })
+                }).catch(function () {});
+            });
+        });
+    }
     if (jogSel) {
         jogSel.addEventListener("change", function () {
+            var step = parseInt(jogSel.value, 10);
+            if (jogSeg) {
+                jogSeg.querySelectorAll("button").forEach(function (b) {
+                    b.classList.toggle("active", parseInt(b.dataset.step, 10) === step);
+                });
+            }
             fetch("/settings", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ jog_step_mm: parseInt(jogSel.value, 10) })
+                body: JSON.stringify({ jog_step_mm: step })
             }).catch(function () {});
         });
     }

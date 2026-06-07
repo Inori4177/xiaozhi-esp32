@@ -22,8 +22,8 @@
 #define STEP_X_DIR_PIN        GPIO_NUM_12
 #define STEP_Y_STEP_PIN       GPIO_NUM_10
 #define STEP_Y_DIR_PIN        GPIO_NUM_11
-#define STEP_ENABLE_PIN       GPIO_NUM_9
-#define LASER_PWM_PIN         GPIO_NUM_17
+#define STEP_ENABLE_PIN       GPIO_NUM_14
+#define LASER_PWM_PIN         GPIO_NUM_21
 
 // ─── 时序参数 ───
 #define STEP_PULSE_US         10

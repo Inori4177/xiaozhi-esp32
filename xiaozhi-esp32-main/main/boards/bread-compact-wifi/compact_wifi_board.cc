@@ -11,6 +11,10 @@
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
+#if CONFIG_MOTION_PEER_UART
+#include "peer_link/peer_cnc_slave.h"
+#endif
+
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
@@ -165,6 +169,9 @@ public:
         InitializeSsd1306Display();
         InitializeButtons();
         InitializeTools();
+#if CONFIG_MOTION_PEER_UART
+        peer_cnc_slave_init();
+#endif
     }
 
     virtual Led* GetLed() override {

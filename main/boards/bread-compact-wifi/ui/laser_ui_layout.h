@@ -5,9 +5,22 @@
 // ============================================================================
 // 屏幕布局 (480×320 横屏) — Screen layout constants
 // ============================================================================
-#define UI_TOP_H        27  // 顶部状态栏高度 (chrome area)
+#define UI_TOP_H        28  // 顶部状态栏高度 (chrome area)
 #define UI_BOTTOM_H     20   // 底部状态栏高度
 #define UI_MAIN_H       (LV_VER_RES - UI_TOP_H - UI_BOTTOM_H)  // 主区域 = 276px
+
+// 顶部 overlay 居中标题（lcd_display status_label_）
+#define UI_CHROME_STATUS_TEXT   "激光雕刻机"
+
+// 底部 overlay 文字区（lcd_display bottom_bar_ / chat_message_label_）
+#define UI_BOTTOM_BAR_W         LV_HOR_RES
+#define UI_BOTTOM_BAR_H         UI_BOTTOM_H
+#define UI_BOTTOM_BAR_OFS_X     0   // 相对屏幕底边中点的水平偏移 (px)
+#define UI_BOTTOM_BAR_OFS_Y     0   // 相对屏幕底边中点的垂直偏移 (px，负=更贴底)
+#define UI_BOTTOM_TEXT_W        (LV_HOR_RES - 32)
+#define UI_BOTTOM_TEXT_H        12  // 0 = 随字体行高；>0 固定标签高度
+#define UI_BOTTOM_TEXT_OFS_X    0   // 相对底栏中心的水平偏移 (px)
+#define UI_BOTTOM_TEXT_OFS_Y    0   // 相对底栏中心的垂直偏移 (px)
 
 // ============================================================================
 // 生物拟态导航浮标系统 — Biomimetic navigation buoy system

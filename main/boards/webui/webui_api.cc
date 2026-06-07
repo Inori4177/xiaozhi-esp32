@@ -15,6 +15,9 @@ extern "C" {
 #include "ui/cnc/ui_cnc_config.h"
 }
 #endif
+#if CONFIG_INTERACTION_PEER_VOICE
+#include "peer_voice_state.h"
+#endif
 
 static const char *TAG = "webui_api";
 
@@ -267,7 +270,14 @@ extern "C" esp_err_t webui_chat_handler(httpd_req_t *req)
         httpd_resp_send_err(req, HTTPD_405_METHOD_NOT_ALLOWED, "GET only");
         return ESP_FAIL;
     }
-    httpd_resp_set_type(req, "text/plain; charset=utf-8");
-    httpd_resp_sendstr(req, "语音助手已移至独立 ESP32-S3，本机仅提供触摸屏与 WebUI。");
+    char json[128] = {};
+#if CONFIG_INTERACTION_PEER_VOICE
+    snprintf(json, sizeof(json),
+             "{\"voice_on_peer\":true,\"state\":\"%s\"}", peer_voice_state_get());
+#else
+    snprintf(json, sizeof(json), "{\"voice_on_peer\":false,\"state\":\"idle\"}");
+#endif
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, json);
     return ESP_OK;
 }
