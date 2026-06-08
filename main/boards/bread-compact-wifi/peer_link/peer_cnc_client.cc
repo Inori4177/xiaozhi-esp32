@@ -2,12 +2,15 @@
 #include "peer_uart_link.h"
 
 #include "../laser_ui_state.h"
+#include "boards/webui/webui_config.h"
 #include "boards/webui/webui_log.h"
 #include "boards/webui/webui_ws.h"
 
 #include <cJSON.h>
 #include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -30,9 +33,15 @@ static float s_pos_y = 0.0f;
 static char s_job_name[64] = "-";
 static bool s_peer_ready = false;
 static bool s_has_suspended = false;
-static int64_t s_last_pong_us = 0;
-static TaskHandle_t s_ping_task = nullptr;
+static bool s_local_file_job = false;
+static bool s_await_cnc_idle = false;
+static int64_t s_job_start_us = 0;
 static TaskHandle_t s_file_task = nullptr;
+
+static void mark_peer_alive(void)
+{
+    s_peer_ready = true;
+}
 
 static bool send_json(const char *json)
 {
@@ -66,6 +75,77 @@ static bool send_cmd_gcode(const char *line)
     return ok;
 }
 
+static void refresh_local_elapsed(void)
+{
+    if (!s_status.is_print_job || s_job_start_us <= 0) {
+        return;
+    }
+    const int64_t now = esp_timer_get_time();
+    if (now <= s_job_start_us) {
+        s_status.elapsed_sec = 0;
+        return;
+    }
+    s_status.elapsed_sec = static_cast<uint32_t>((now - s_job_start_us) / 1000000LL);
+    if (s_status.progress_pct > 0 && s_status.progress_pct < 100) {
+        const uint32_t total_est =
+            (s_status.elapsed_sec * 100U + static_cast<uint32_t>(s_status.progress_pct) - 1U) /
+            static_cast<uint32_t>(s_status.progress_pct);
+        if (total_est > s_status.elapsed_sec) {
+            s_status.eta_sec = total_est - s_status.elapsed_sec;
+            s_status.has_eta = true;
+        } else {
+            s_status.has_eta = false;
+        }
+    } else {
+        s_status.has_eta = false;
+    }
+}
+
+static void begin_local_file_job(const char *base_name, size_t line_count)
+{
+    if (base_name != nullptr) {
+        snprintf(s_job_name, sizeof(s_job_name), "%s", base_name);
+    }
+    s_has_suspended = false;
+    s_local_file_job = true;
+    s_status.state = UI_CNC_WORK_RUNNING;
+    s_status.is_print_job = true;
+    s_status.progress_pct = 0;
+    s_status.elapsed_sec = 0;
+    s_status.eta_sec = 0;
+    s_status.has_eta = false;
+    s_job_start_us = esp_timer_get_time();
+    ESP_LOGI(TAG, "file job begin: %s (%u lines)", s_job_name, static_cast<unsigned>(line_count));
+}
+
+static void end_local_file_job(void)
+{
+    s_status.state = UI_CNC_WORK_IDLE;
+    s_status.is_print_job = false;
+    s_status.progress_pct = 0;
+    s_status.elapsed_sec = 0;
+    s_status.eta_sec = 0;
+    s_status.has_eta = false;
+    s_local_file_job = false;
+    s_await_cnc_idle = false;
+    s_job_start_us = 0;
+    ESP_LOGI(TAG, "file job end: %s", s_job_name);
+}
+
+static void try_finish_file_job_from_peer(const cJSON *root)
+{
+    if (!s_local_file_job || !s_await_cnc_idle) {
+        return;
+    }
+    const cJSON *state = cJSON_GetObjectItem(root, "state");
+    const cJSON *busy = cJSON_GetObjectItem(root, "busy");
+    const int st = cJSON_IsNumber(state) ? state->valueint : -1;
+    const bool peer_busy = cJSON_IsBool(busy) && cJSON_IsTrue(busy);
+    if (st == static_cast<int>(UI_CNC_WORK_IDLE) && !peer_busy) {
+        end_local_file_job();
+    }
+}
+
 static void parse_status(const cJSON *root)
 {
     const cJSON *state = cJSON_GetObjectItem(root, "state");
@@ -75,6 +155,30 @@ static void parse_status(const cJSON *root)
     const cJSON *has_eta = cJSON_GetObjectItem(root, "has_eta");
     const cJSON *busy = cJSON_GetObjectItem(root, "busy");
     const cJSON *file = cJSON_GetObjectItem(root, "file");
+
+    if (s_local_file_job && s_await_cnc_idle) {
+        if (cJSON_IsNumber(pct)) {
+            s_status.progress_pct = static_cast<uint8_t>(pct->valueint);
+        }
+        if (cJSON_IsNumber(state)) {
+            s_status.state = static_cast<ui_cnc_work_state_t>(state->valueint);
+        }
+        if (cJSON_IsBool(busy)) {
+            s_status.is_print_job = cJSON_IsTrue(busy);
+        }
+        try_finish_file_job_from_peer(root);
+        return;
+    }
+
+    if (s_local_file_job) {
+        if (cJSON_IsNumber(state)) {
+            const auto st = static_cast<ui_cnc_work_state_t>(state->valueint);
+            if (st == UI_CNC_WORK_PAUSED || st == UI_CNC_WORK_RUNNING) {
+                s_status.state = st;
+            }
+        }
+        return;
+    }
 
     if (cJSON_IsNumber(state)) {
         s_status.state = static_cast<ui_cnc_work_state_t>(state->valueint);
@@ -116,13 +220,12 @@ static void on_peer_line(const char *line, void *user_data)
     const cJSON *type = cJSON_GetObjectItem(root, "t");
     const char *t = cJSON_IsString(type) ? type->valuestring : nullptr;
 
-    if (t != nullptr && strcmp(t, "pong") == 0) {
-        if (!s_peer_ready) {
-            ESP_LOGI(TAG, "peer link ready (pong)");
-        }
-        s_last_pong_us = esp_timer_get_time();
-        s_peer_ready = true;
-    } else if (t != nullptr && strcmp(t, "status") == 0) {
+    if (t != nullptr && strcmp(t, "pong") == 0 && !s_peer_ready) {
+        ESP_LOGI(TAG, "peer link ready (pong)");
+    }
+    mark_peer_alive();
+
+    if (t != nullptr && strcmp(t, "status") == 0) {
         parse_status(root);
     } else if (t != nullptr && strcmp(t, "pos") == 0) {
         const cJSON *x = cJSON_GetObjectItem(root, "x");
@@ -151,49 +254,23 @@ static void on_peer_line(const char *line, void *user_data)
     cJSON_Delete(root);
 }
 
-static void ping_task(void *arg)
+static bool read_gcode_lines(const char *path, std::vector<std::string> &lines_out)
 {
-    (void)arg;
-    for (;;) {
-        send_json("{\"t\":\"ping\"}");
-        send_json("{\"t\":\"poll\"}");
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        const int64_t now = esp_timer_get_time();
-        if (s_last_pong_us == 0) {
-            continue;
-        }
-        if (now - s_last_pong_us > 8000000LL) {
-            if (s_peer_ready) {
-                ESP_LOGW(TAG, "peer link timeout (no pong >8s)");
-            }
-            s_peer_ready = false;
-        }
-    }
-}
-
-static void file_stream_task(void *arg)
-{
-    char *path = static_cast<char *>(arg);
-    if (path == nullptr) {
-        vTaskDelete(nullptr);
-        return;
-    }
-
     FILE *f = fopen(path, "rb");
     if (f == nullptr) {
-        ESP_LOGE(TAG, "open failed: %s", path);
-        free(path);
-        s_file_task = nullptr;
-        vTaskDelete(nullptr);
-        return;
+        return false;
     }
 
-    const char *base = strrchr(path, '/');
-    base = (base != nullptr) ? base + 1 : path;
-    char begin[128];
-    snprintf(begin, sizeof(begin), "{\"t\":\"file_begin\",\"name\":\"%s\"}", base);
-    send_json(begin);
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        return false;
+    }
+    const long file_size = ftell(f);
+    if (file_size < 0 || file_size > static_cast<long>(WEBUI_GCODEGEN_MAX_BYTES)) {
+        fclose(f);
+        return false;
+    }
+    rewind(f);
 
     char line[256];
     while (fgets(line, sizeof(line), f) != nullptr) {
@@ -204,11 +281,53 @@ static void file_stream_task(void *arg)
         if (n == 0 || line[0] == ';') {
             continue;
         }
-        send_cmd_gcode(line);
-        vTaskDelay(1);
+        lines_out.emplace_back(line);
     }
     fclose(f);
+    return !lines_out.empty();
+}
+
+static void file_stream_task(void *arg)
+{
+    char *path = static_cast<char *>(arg);
+    if (path == nullptr) {
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    std::vector<std::string> lines;
+    if (!read_gcode_lines(path, lines)) {
+        ESP_LOGE(TAG, "read failed: %s", path);
+        free(path);
+        s_file_task = nullptr;
+        vTaskDelete(nullptr);
+        return;
+    }
+
+    const char *base = strrchr(path, '/');
+    base = (base != nullptr) ? base + 1 : path;
+    begin_local_file_job(base, lines.size());
+
+    char begin[160];
+    snprintf(begin, sizeof(begin), "{\"t\":\"file_begin\",\"name\":\"%s\",\"lines\":%u}", base,
+             static_cast<unsigned>(lines.size()));
+    send_json(begin);
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        while (s_has_suspended) {
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        send_cmd_gcode(lines[i].c_str());
+        s_status.progress_pct =
+            static_cast<uint8_t>(((i + 1U) * 100U) / static_cast<unsigned>(lines.size()));
+        refresh_local_elapsed();
+        vTaskDelay(1);
+    }
+
     send_json("{\"t\":\"file_end\"}");
+    s_await_cnc_idle = true;
+    s_status.progress_pct = 100;
+    refresh_local_elapsed();
     free(path);
     s_file_task = nullptr;
     vTaskDelete(nullptr);
@@ -220,10 +339,6 @@ bool peer_cnc_client_init(void)
         return false;
     }
     peer_uart_link_set_line_callback(on_peer_line, nullptr);
-
-    if (s_ping_task == nullptr) {
-        xTaskCreatePinnedToCore(ping_task, "peer_ping", 3072, nullptr, 4, &s_ping_task, 0);
-    }
     send_json("{\"t\":\"ping\"}");
     return true;
 }
@@ -265,11 +380,13 @@ bool peer_cnc_client_execute_gcode_file(const char *vfs_path)
     if (vfs_path == nullptr || s_file_task != nullptr) {
         return false;
     }
+    s_has_suspended = false;
+    send_json("{\"t\":\"run\"}");
     char *copy = strdup(vfs_path);
     if (copy == nullptr) {
         return false;
     }
-    if (xTaskCreatePinnedToCore(file_stream_task, "peer_file", 4096, copy, 4, &s_file_task, 0) != pdPASS) {
+    if (xTaskCreatePinnedToCore(file_stream_task, "peer_file", 8192, copy, 4, &s_file_task, 0) != pdPASS) {
         free(copy);
         return false;
     }
@@ -279,12 +396,19 @@ bool peer_cnc_client_execute_gcode_file(const char *vfs_path)
 bool peer_cnc_client_pause(void)
 {
     s_has_suspended = true;
+    if (s_local_file_job) {
+        s_status.state = UI_CNC_WORK_PAUSED;
+        s_status.is_print_job = true;
+    }
     return send_json("{\"t\":\"pause\"}");
 }
 
 bool peer_cnc_client_run(void)
 {
     s_has_suspended = false;
+    if (s_local_file_job && s_status.state == UI_CNC_WORK_PAUSED) {
+        s_status.state = UI_CNC_WORK_RUNNING;
+    }
     return send_json("{\"t\":\"run\"}");
 }
 
@@ -299,9 +423,11 @@ bool peer_cnc_client_apply_settings(void)
 
 void peer_cnc_client_get_status(ui_cnc_print_status_t *out)
 {
-    if (out != nullptr) {
-        *out = s_status;
+    if (out == nullptr) {
+        return;
     }
+    refresh_local_elapsed();
+    *out = s_status;
 }
 
 void peer_cnc_client_get_position_mm(float *x_mm, float *y_mm)
@@ -316,8 +442,8 @@ void peer_cnc_client_get_position_mm(float *x_mm, float *y_mm)
 
 bool peer_cnc_client_is_busy(void)
 {
-    return s_status.state == UI_CNC_WORK_RUNNING || s_status.state == UI_CNC_WORK_JOGGING ||
-           s_file_task != nullptr;
+    return s_file_task != nullptr || s_local_file_job ||
+           s_status.state == UI_CNC_WORK_RUNNING || s_status.state == UI_CNC_WORK_JOGGING;
 }
 
 const char *peer_cnc_client_get_job_name(void)

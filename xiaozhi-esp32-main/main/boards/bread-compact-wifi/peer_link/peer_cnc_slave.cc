@@ -10,7 +10,6 @@
 #include <string>
 
 #include <esp_log.h>
-#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/task.h>
@@ -37,6 +36,16 @@ struct slave_msg_t {
     char axis;
 };
 
+struct sent_snapshot_t {
+    int state;
+    uint8_t pct;
+    bool busy;
+    char file[64];
+    float x;
+    float y;
+    bool valid;
+};
+
 static QueueHandle_t s_cmd_q = nullptr;
 static TaskHandle_t s_worker = nullptr;
 static float s_pos_x = 0.0f;
@@ -45,11 +54,14 @@ static int s_work_state = 0;
 static uint8_t s_progress = 0;
 static bool s_busy = false;
 static bool s_paused = false;
+static bool s_in_file_job = false;
 static char s_job_name[64] = "-";
 static int s_power_pct = 50;
 static int s_speed_pct = 100;
 static uint32_t s_file_lines = 0;
 static uint32_t s_file_done = 0;
+static bool s_file_stream_ended = false;
+static sent_snapshot_t s_sent = {};
 
 static bool send_json(const char *json)
 {
@@ -61,17 +73,6 @@ static void send_pong(void)
     send_json("{\"t\":\"pong\",\"ok\":true}");
 }
 
-static void send_ack(bool ok, const char *err)
-{
-    if (ok) {
-        send_json("{\"t\":\"ack\",\"ok\":true}");
-    } else {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "{\"t\":\"ack\",\"ok\":false,\"err\":\"%s\"}", err ? err : "fail");
-        send_json(buf);
-    }
-}
-
 static void send_log(const char *msg)
 {
     char buf[384];
@@ -79,25 +80,98 @@ static void send_log(const char *msg)
     send_json(buf);
 }
 
-static void push_status_pos(void)
+static bool status_changed(void)
 {
+    return !s_sent.valid || s_sent.state != s_work_state || s_sent.pct != s_progress ||
+           s_sent.busy != s_busy || strcmp(s_sent.file, s_job_name) != 0;
+}
+
+static bool pos_changed(void)
+{
+    return !s_sent.valid || s_sent.x != s_pos_x || s_sent.y != s_pos_y;
+}
+
+static void push_status_if_changed(void)
+{
+    if (!status_changed()) {
+        return;
+    }
     char status[256];
     snprintf(status, sizeof(status),
              "{\"t\":\"status\",\"state\":%d,\"pct\":%u,\"elapsed\":0,\"eta\":0,"
              "\"has_eta\":false,\"busy\":%s,\"file\":\"%s\"}",
              s_work_state, static_cast<unsigned>(s_progress), s_busy ? "true" : "false", s_job_name);
     send_json(status);
+    s_sent.state = s_work_state;
+    s_sent.pct = s_progress;
+    s_sent.busy = s_busy;
+    snprintf(s_sent.file, sizeof(s_sent.file), "%s", s_job_name);
+    s_sent.valid = true;
+}
 
+static void push_pos_if_changed(void)
+{
+    if (!pos_changed()) {
+        return;
+    }
     char pos[96];
     snprintf(pos, sizeof(pos), "{\"t\":\"pos\",\"x\":%.2f,\"y\":%.2f}",
              static_cast<double>(s_pos_x), static_cast<double>(s_pos_y));
     send_json(pos);
+    s_sent.x = s_pos_x;
+    s_sent.y = s_pos_y;
+    s_sent.valid = true;
 }
 
-static bool enqueue_msg(const slave_msg_t &msg)
+static void push_motion_result(void)
+{
+    push_status_if_changed();
+    push_pos_if_changed();
+}
+
+static void maybe_finish_file_job(void)
+{
+    if (!s_in_file_job || !s_file_stream_ended || s_cmd_q == nullptr || s_paused) {
+        return;
+    }
+    if (uxQueueMessagesWaiting(s_cmd_q) > 0) {
+        return;
+    }
+    s_busy = false;
+    s_in_file_job = false;
+    s_work_state = 0;
+    s_progress = 100;
+    s_file_stream_ended = false;
+    s_file_lines = 0;
+}
+
+static void apply_pause_now(void)
+{
+    s_paused = true;
+    s_work_state = 3;
+    Stepper::GoIdle();
+    if (s_cmd_q != nullptr) {
+        xQueueReset(s_cmd_q);
+    }
+    send_log("paused");
+    push_motion_result();
+}
+
+static void apply_run_now(void)
+{
+    s_paused = false;
+    s_work_state = s_busy ? 1 : 0;
+    send_log("run");
+    push_motion_result();
+}
+
+static bool enqueue_msg(const slave_msg_t &msg, bool to_front = false)
 {
     if (s_cmd_q == nullptr) {
         return false;
+    }
+    if (to_front) {
+        return xQueueSendToFront(s_cmd_q, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
     }
     return xQueueSend(s_cmd_q, &msg, pdMS_TO_TICKS(50)) == pdTRUE;
 }
@@ -118,7 +192,9 @@ static void run_gcode_line(const char *line)
     if (s_file_lines > 0) {
         s_progress = static_cast<uint8_t>((s_file_done * 100U) / s_file_lines);
     }
-    send_log(line);
+    if (!s_in_file_job) {
+        send_log(line);
+    }
 }
 
 static void worker_task(void *arg)
@@ -167,16 +243,11 @@ static void worker_task(void *arg)
             s_busy = false;
             break;
         case SLAVE_CMD_PAUSE:
-            s_paused = true;
-            s_work_state = 3;
-            Stepper::GoIdle();
-            send_log("paused");
-            break;
+            apply_pause_now();
+            continue;
         case SLAVE_CMD_RUN:
-            s_paused = false;
-            s_work_state = s_busy ? 1 : 0;
-            send_log("run");
-            break;
+            apply_run_now();
+            continue;
         case SLAVE_CMD_APPLY:
             s_power_pct = msg.i0;
             s_speed_pct = msg.i1;
@@ -185,16 +256,8 @@ static void worker_task(void *arg)
         default:
             break;
         }
-        push_status_pos();
-    }
-}
-
-static void status_task(void *arg)
-{
-    (void)arg;
-    for (;;) {
-        push_status_pos();
-        vTaskDelay(pdMS_TO_TICKS(500));
+        maybe_finish_file_job();
+        push_motion_result();
     }
 }
 
@@ -219,12 +282,18 @@ static void on_host_line(const char *line, void *user_data)
         return;
     }
 
-    ESP_LOGI(TAG, "cmd: %s", t);
+    if (strcmp(t, "ping") != 0) {
+        ESP_LOGI(TAG, "cmd: %s", t);
+    }
 
     if (strcmp(t, "ping") == 0) {
         send_pong();
     } else if (strcmp(t, "poll") == 0) {
-        push_status_pos();
+        push_motion_result();
+    } else if (strcmp(t, "pause") == 0) {
+        apply_pause_now();
+    } else if (strcmp(t, "run") == 0) {
+        apply_run_now();
     } else if (strcmp(t, "gcode") == 0) {
         const cJSON *gline = cJSON_GetObjectItem(root, "line");
         if (cJSON_IsString(gline)) {
@@ -255,12 +324,6 @@ static void on_host_line(const char *line, void *user_data)
             msg.f1 = static_cast<float>(y->valuedouble);
             enqueue_msg(msg);
         }
-    } else if (strcmp(t, "pause") == 0) {
-        msg.type = SLAVE_CMD_PAUSE;
-        enqueue_msg(msg);
-    } else if (strcmp(t, "run") == 0) {
-        msg.type = SLAVE_CMD_RUN;
-        enqueue_msg(msg);
     } else if (strcmp(t, "apply") == 0) {
         const cJSON *power = cJSON_GetObjectItem(root, "power");
         const cJSON *speed = cJSON_GetObjectItem(root, "speed");
@@ -270,20 +333,26 @@ static void on_host_line(const char *line, void *user_data)
         enqueue_msg(msg);
     } else if (strcmp(t, "file_begin") == 0) {
         const cJSON *name = cJSON_GetObjectItem(root, "name");
+        const cJSON *lines = cJSON_GetObjectItem(root, "lines");
+        s_paused = false;
+        if (s_cmd_q != nullptr) {
+            xQueueReset(s_cmd_q);
+        }
         if (cJSON_IsString(name)) {
             snprintf(s_job_name, sizeof(s_job_name), "%s", name->valuestring);
         }
-        s_file_lines = 0;
+        s_file_lines = cJSON_IsNumber(lines) ? static_cast<uint32_t>(lines->valueint) : 0;
         s_file_done = 0;
         s_progress = 0;
         s_busy = true;
+        s_in_file_job = true;
+        s_file_stream_ended = false;
         s_work_state = 1;
-        push_status_pos();
+        push_motion_result();
     } else if (strcmp(t, "file_end") == 0) {
-        s_busy = false;
-        s_work_state = 0;
-        s_progress = 100;
-        push_status_pos();
+        s_file_stream_ended = true;
+        maybe_finish_file_job();
+        push_motion_result();
     } else {
         ESP_LOGW(TAG, "unknown cmd: %s", t);
     }
@@ -307,7 +376,6 @@ bool peer_cnc_slave_init(void)
     if (s_worker == nullptr) {
         xTaskCreatePinnedToCore(worker_task, "peer_cnc_worker", 8192, nullptr, 4, &s_worker, 1);
     }
-    xTaskCreatePinnedToCore(status_task, "peer_cnc_stat", 3072, nullptr, 3, nullptr, 0);
 
     ESP_LOGI(TAG, "peer CNC slave ready");
     return true;

@@ -124,10 +124,10 @@ lv_obj_t *page_settings_create(lv_obj_t *parent)
 
     laser_ui_state_bind_settings(material, power, power_val, speed, speed_val);
 
-    lv_obj_t *apply = laser_ui_create_image_button(page, &ui_btn_apply_220x36,
-                                                   "应用设置", lv_color_white());
-    lv_obj_set_pos(apply, 102, 208);
-    lv_obj_set_size(apply, 220, 36);
+    lv_obj_t *apply = laser_ui_create_png_button(page, &ui_btn_settings_apply_160x52,
+                                                 UI_SETTINGS_APPLY_W, UI_SETTINGS_APPLY_H,
+                                                 UI_SETTINGS_APPLY_H / 2, UI_SETTINGS_APPLY_EXT_CLICK);
+    lv_obj_set_pos(apply, UI_SETTINGS_APPLY_X, UI_SETTINGS_APPLY_Y);
     lv_obj_add_event_cb(apply, emit_cb, LV_EVENT_CLICKED,
                         reinterpret_cast<void *>(static_cast<intptr_t>(LASER_EVT_SETTINGS_APPLY)));
 

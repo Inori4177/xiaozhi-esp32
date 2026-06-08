@@ -21,10 +21,14 @@ LV_IMG_DECLARE(print);
 LV_IMG_DECLARE(printpage);
 LV_IMG_DECLARE(settingpage);
 LV_IMG_DECLARE(pickpage);
+LV_IMG_DECLARE(keyboard);
 LV_IMG_DECLARE(xiaozhipage);
 
 LV_IMG_DECLARE(ui_bg_fresh_480x276);
 LV_IMG_DECLARE(ui_btn_apply_220x36);
+LV_IMG_DECLARE(ui_btn_pick_homing_90x45);
+LV_IMG_DECLARE(ui_btn_pick_settle_90x45);
+LV_IMG_DECLARE(ui_btn_settings_apply_160x52);
 LV_IMG_DECLARE(ui_btn_pause_96x44);
 LV_IMG_DECLARE(ui_btn_run_96x44);
 LV_IMG_DECLARE(ui_file_thumb_mountain);

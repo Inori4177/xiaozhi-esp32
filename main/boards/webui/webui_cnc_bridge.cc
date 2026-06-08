@@ -86,6 +86,9 @@ bool webui_cnc_run_file(const char *vfs_path)
         return false;
     }
     fclose(probe);
+    if (webui_cnc_has_suspended_job()) {
+        ui_cnc_print_service_run();
+    }
     const bool ok = ui_cnc_print_service_execute_gcode_file(vfs_path);
     webui_log_appendf("run file %s\n", vfs_path);
     return ok;

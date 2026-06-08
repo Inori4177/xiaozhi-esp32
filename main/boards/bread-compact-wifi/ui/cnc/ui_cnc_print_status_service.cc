@@ -125,6 +125,26 @@ static void refresh_status_widgets(void)
 
     apply_badge(st.state);
 
+    if (st.state == UI_CNC_WORK_IDLE &&
+        (g_last_pct != 0 || g_last_elapsed != 0 || g_last_has_eta)) {
+        if (g_bar != nullptr) {
+            lv_bar_set_value(g_bar, 0, LV_ANIM_OFF);
+        }
+        if (g_pct != nullptr) {
+            lv_label_set_text(g_pct, "0%");
+        }
+        if (g_elapsed != nullptr) {
+            lv_label_set_text(g_elapsed, "用时 00:00");
+        }
+        if (g_eta != nullptr) {
+            lv_label_set_text(g_eta, "剩余 --:--");
+        }
+        g_last_pct = 0;
+        g_last_elapsed = 0;
+        g_last_eta = 0;
+        g_last_has_eta = false;
+    }
+
     if (g_elapsed != nullptr && st.elapsed_sec != g_last_elapsed) {
         char time_buf[16];
         format_mmss(st.elapsed_sec, time_buf, sizeof(time_buf));

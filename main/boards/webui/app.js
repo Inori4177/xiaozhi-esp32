@@ -77,6 +77,10 @@ function apply_machine_status(st) {
     if (pctEl) pctEl.textContent = pct + "%";
     if (barEl) barEl.style.width = pct + "%";
 
+    var isRunning = st.state === "雕刻中" || st.state_id === 1;
+    var statusEl = $("machine_status");
+    if (statusEl) statusEl.classList.toggle("running", isRunning);
+
     if (typeof st.peer_ready === "boolean") {
         peer_ready = st.peer_ready;
         set_pill("peer_status", peer_ready ? "运动 MCU · 在线" : "运动 MCU · 离线", peer_ready);

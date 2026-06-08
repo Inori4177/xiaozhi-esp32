@@ -80,6 +80,64 @@ lv_obj_t *laser_ui_create_tab_button(lv_obj_t *parent, const char *text, bool ac
     return btn;
 }
 
+static void png_button_feedback_cb(lv_event_t *e)
+{
+    lv_obj_t *btn = static_cast<lv_obj_t *>(lv_event_get_target(e));
+    if (btn == nullptr) {
+        return;
+    }
+
+    switch (lv_event_get_code(e)) {
+    case LV_EVENT_PRESSED:
+        lv_obj_set_style_bg_color(btn, UI_COLOR_AQUA, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(btn, LV_OPA_40, LV_PART_MAIN);
+        lv_obj_set_style_border_width(btn, 1, LV_PART_MAIN);
+        lv_obj_set_style_border_color(btn, UI_COLOR_ACCENT_GLOW, LV_PART_MAIN);
+        lv_obj_set_style_border_opa(btn, LV_OPA_70, LV_PART_MAIN);
+        lv_obj_set_style_transform_width(btn, -2, LV_PART_MAIN);
+        lv_obj_set_style_transform_height(btn, -2, LV_PART_MAIN);
+        break;
+    case LV_EVENT_RELEASED:
+    case LV_EVENT_PRESS_LOST:
+        lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
+        lv_obj_set_style_border_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_transform_width(btn, 0, LV_PART_MAIN);
+        lv_obj_set_style_transform_height(btn, 0, LV_PART_MAIN);
+        break;
+    default:
+        break;
+    }
+}
+
+lv_obj_t *laser_ui_create_png_button(lv_obj_t *parent, const lv_image_dsc_t *src,
+                                     int w, int h, int radius, int ext_click)
+{
+    lv_obj_t *btn = lv_button_create(parent);
+    lv_obj_set_size(btn, w, h);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_width(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_shadow_width(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(btn, 0, LV_PART_MAIN);
+    lv_obj_set_style_radius(btn, radius, LV_PART_MAIN);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    if (ext_click > 0) {
+        lv_obj_set_ext_click_area(btn, ext_click);
+    }
+
+    if (src != nullptr) {
+        lv_obj_t *img = lv_image_create(btn);
+        lv_image_set_src(img, src);
+        lv_obj_center(img);
+        lv_obj_remove_flag(img, LV_OBJ_FLAG_CLICKABLE);
+    }
+
+    lv_obj_add_event_cb(btn, png_button_feedback_cb, LV_EVENT_PRESSED, nullptr);
+    lv_obj_add_event_cb(btn, png_button_feedback_cb, LV_EVENT_RELEASED, nullptr);
+    lv_obj_add_event_cb(btn, png_button_feedback_cb, LV_EVENT_PRESS_LOST, nullptr);
+    return btn;
+}
+
 lv_obj_t *laser_ui_create_image_button(lv_obj_t *parent, const lv_image_dsc_t *src,
                                        const char *text, lv_color_t text_color)
 {

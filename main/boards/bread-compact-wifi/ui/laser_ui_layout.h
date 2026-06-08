@@ -18,7 +18,7 @@
 #define UI_BOTTOM_BAR_OFS_X     0   // 相对屏幕底边中点的水平偏移 (px)
 #define UI_BOTTOM_BAR_OFS_Y     0   // 相对屏幕底边中点的垂直偏移 (px，负=更贴底)
 #define UI_BOTTOM_TEXT_W        (LV_HOR_RES - 32)
-#define UI_BOTTOM_TEXT_H        12  // 0 = 随字体行高；>0 固定标签高度
+#define UI_BOTTOM_TEXT_H        0  // 0 = 随字体行高；>0 固定标签高度
 #define UI_BOTTOM_TEXT_OFS_X    0   // 相对底栏中心的水平偏移 (px)
 #define UI_BOTTOM_TEXT_OFS_Y    0   // 相对底栏中心的垂直偏移 (px)
 
@@ -88,6 +88,20 @@
 #define UI_NAV_HOTSPOT_Y_PICK   145
 #define UI_NAV_HOTSPOT_Y_VOICE  202
 #define UI_NAV_HOTSPOT_EXTEND   6
+
+/* ---------- 选定页 / 设置页 PNG 按键 ---------- */
+#define UI_PICK_BTN_W           90
+#define UI_PICK_BTN_H           45
+#define UI_PICK_BTN_EXT_CLICK   6
+#define UI_PICK_BTN_GAP         12
+#define UI_PICK_RAIL_GAP        8
+#define UI_PICK_STATUS_H        24
+#define UI_PICK_STATUS_TO_BTN   8
+#define UI_SETTINGS_APPLY_W     160
+#define UI_SETTINGS_APPLY_H     52
+#define UI_SETTINGS_APPLY_X     133
+#define UI_SETTINGS_APPLY_Y     196
+#define UI_SETTINGS_APPLY_EXT_CLICK 8
 
 // ============================================================================
 // 主 UI 调色板 (暗色主题 — Dark theme with cyan accent)

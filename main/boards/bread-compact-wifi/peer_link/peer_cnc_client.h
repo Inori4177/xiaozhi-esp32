@@ -11,9 +11,9 @@
  *   {"t":"move","x":10.0,"y":20.0}
  *   {"t":"pause"} / {"t":"run"}
  *   {"t":"apply","power":50,"speed":100}
- *   {"t":"file_begin","name":"job.gcode"}
+ *   {"t":"file_begin","name":"job.gcode","lines":123}
  *   {"t":"file_end"}
- *   {"t":"poll"}
+ *   {"t":"poll"}  (optional one-shot sync; no periodic poll)
  *
  * Peer -> Host events:
  *   {"t":"pong","ok":true}
