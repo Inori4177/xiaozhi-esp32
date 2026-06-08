@@ -100,6 +100,62 @@ static esp_err_t files_list_json(const char *web_path, httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t files_read(const char *web_path, httpd_req_t *req)
+{
+    char vfs_path[WEBUI_FILE_PATH_MAX];
+    if (!webui_vfs_resolve_path(web_path, vfs_path, sizeof(vfs_path))) {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad path");
+        return ESP_FAIL;
+    }
+
+    FILE *f = fopen(vfs_path, "rb");
+    if (f == nullptr) {
+        httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
+        return ESP_FAIL;
+    }
+    if (fseek(f, 0, SEEK_END) != 0) {
+        fclose(f);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "seek failed");
+        return ESP_FAIL;
+    }
+    const long file_size = ftell(f);
+    if (file_size < 0) {
+        fclose(f);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "size failed");
+        return ESP_FAIL;
+    }
+    if (static_cast<size_t>(file_size) > WEBUI_GCODEGEN_MAX_BYTES) {
+        fclose(f);
+        httpd_resp_send_err(req, HTTPD_413_CONTENT_TOO_LARGE, "gcode too large (max 120KB)");
+        return ESP_FAIL;
+    }
+    rewind(f);
+
+    httpd_resp_set_type(req, "text/plain; charset=utf-8");
+    char buf[1024];
+    long remaining = file_size;
+    while (remaining > 0) {
+        const size_t chunk = remaining > static_cast<long>(sizeof(buf))
+                                 ? sizeof(buf)
+                                 : static_cast<size_t>(remaining);
+        const size_t n = fread(buf, 1, chunk, f);
+        if (n == 0) {
+            fclose(f);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "read failed");
+            return ESP_FAIL;
+        }
+        if (httpd_resp_send_chunk(req, buf, n) != ESP_OK) {
+            fclose(f);
+            httpd_resp_send_chunk(req, nullptr, 0);
+            return ESP_FAIL;
+        }
+        remaining -= static_cast<long>(n);
+    }
+    fclose(f);
+    httpd_resp_send_chunk(req, nullptr, 0);
+    return ESP_OK;
+}
+
 static esp_err_t files_delete(const char *web_path, const char *filename, httpd_req_t *req)
 {
     char vfs_path[WEBUI_FILE_PATH_MAX];
@@ -322,6 +378,13 @@ extern "C" esp_err_t webui_files_handler(httpd_req_t *req)
     }
     if (strcmp(action, "delete") == 0) {
         return files_delete(web_path.c_str(), url_decode(filename).c_str(), req);
+    }
+    if (strcmp(action, "read") == 0) {
+        if (!path_raw[0]) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "missing path");
+            return ESP_FAIL;
+        }
+        return files_read(web_path.c_str(), req);
     }
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "unknown action");
     return ESP_FAIL;

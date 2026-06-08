@@ -15,7 +15,7 @@ httpd_handle_t webui_http_start(void)
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.server_port = WEBUI_HTTP_PORT;
     cfg.uri_match_fn = httpd_uri_match_wildcard;
-    cfg.max_uri_handlers = 18;
+    cfg.max_uri_handlers = 20;
     cfg.stack_size = 8192;
     cfg.lru_purge_enable = true;
 
@@ -116,6 +116,12 @@ httpd_handle_t webui_http_start(void)
         .handler = webui_chat_handler,
         .user_ctx = nullptr,
     };
+    static const httpd_uri_t preview_uri = {
+        .uri = WEBUI_PREVIEW_PATH,
+        .method = HTTP_POST,
+        .handler = webui_preview_handler,
+        .user_ctx = nullptr,
+    };
 
     httpd_register_uri_handler(s_server, &root_uri);
     httpd_register_uri_handler(s_server, &index_uri);
@@ -132,6 +138,7 @@ httpd_handle_t webui_http_start(void)
     httpd_register_uri_handler(s_server, &run_uri);
     httpd_register_uri_handler(s_server, &pause_uri);
     httpd_register_uri_handler(s_server, &chat_uri);
+    httpd_register_uri_handler(s_server, &preview_uri);
 
     webui_ws_set_server(s_server);
     ESP_LOGI(TAG, "HTTP server on port %d", WEBUI_HTTP_PORT);

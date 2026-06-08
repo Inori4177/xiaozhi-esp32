@@ -547,6 +547,50 @@ table.files td, table.files th {
   padding: 10px 12px;
 }
 
+.files-preview-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--surface-inset);
+}
+
+.files-preview-panel:not(.hide_it) {
+  display: block;
+}
+
+.files-preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.files-preview-name {
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+#files_preview_canvas {
+  display: block;
+  width: 100%;
+  max-width: 336px;
+  height: auto;
+  border: 2px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--surface-inset-mint);
+}
+
+.files-preview-status {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .gcodegen fieldset {
   border: 1px solid var(--card-border);
   border-radius: 16px;

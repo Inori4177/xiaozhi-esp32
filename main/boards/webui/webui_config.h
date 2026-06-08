@@ -17,6 +17,7 @@ extern "C" {
 #define WEBUI_RUN_PATH        "/run"
 #define WEBUI_PAUSE_PATH      "/pause"
 #define WEBUI_CHAT_PATH         "/chat"
+#define WEBUI_PREVIEW_PATH      "/preview"
 
 /** 图文 G-code 上传体积上限（字节），防止占满 1MB LocalFS / 内存。 */
 #define WEBUI_GCODEGEN_MAX_BYTES  (120 * 1024)

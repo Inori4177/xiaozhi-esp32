@@ -13,6 +13,8 @@ extern const uint8_t style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t style_css_end[] asm("_binary_style_css_end");
 extern const uint8_t gcodegen_js_start[] asm("_binary_gcodegen_js_start");
 extern const uint8_t gcodegen_js_end[] asm("_binary_gcodegen_js_end");
+extern const uint8_t gcode_preview_js_start[] asm("_binary_gcode_preview_js_start");
+extern const uint8_t gcode_preview_js_end[] asm("_binary_gcode_preview_js_end");
 
 static esp_err_t send_blob(httpd_req_t *req, const char *content_type, const uint8_t *start,
                            const uint8_t *end, bool text_embed)
@@ -40,6 +42,10 @@ esp_err_t webui_static_handler(httpd_req_t *req)
     }
     if (strcmp(uri, "/gcodegen.js") == 0) {
         return send_blob(req, "application/javascript", gcodegen_js_start, gcodegen_js_end, true);
+    }
+    if (strcmp(uri, "/gcode_preview.js") == 0) {
+        return send_blob(req, "application/javascript", gcode_preview_js_start, gcode_preview_js_end,
+                         true);
     }
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "not found");
     return ESP_FAIL;

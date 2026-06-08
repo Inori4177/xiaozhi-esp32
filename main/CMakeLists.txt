@@ -864,10 +864,12 @@ if(CONFIG_MSP3525_LASER_UI)
         file(GLOB LASER_UI_MCP_SRCS
             ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/mcp/*.cc)
     endif()
+    file(GLOB LASER_UI_GCODE_SRCS
+        ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/gcode/*.cc)
     file(GLOB LASER_UI_IMG_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/assets/images/*.c)
     list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_CNC_SRCS} ${LASER_UI_PICK_SRCS}
-        ${LASER_UI_IMG_SRCS})
+        ${LASER_UI_GCODE_SRCS} ${LASER_UI_IMG_SRCS})
     if(LASER_UI_MCP_SRCS)
         list(APPEND SOURCES ${LASER_UI_MCP_SRCS})
     endif()
@@ -1059,7 +1061,8 @@ if(CONFIG_XIAOZHI_WEBUI)
         boards/webui/index.html
         boards/webui/app.js
         boards/webui/style.css
-        boards/webui/gcodegen.js)
+        boards/webui/gcodegen.js
+        boards/webui/gcode_preview.js)
 endif()
 if(CONFIG_BOARD_TYPE_ESP_VOCAT)
     list(APPEND MAIN_PRIV_REQUIRES_EXTRA

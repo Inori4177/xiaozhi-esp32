@@ -232,20 +232,139 @@ function files_dispatch(json) {
     }
     (json.files || []).forEach(function (f) {
         var tr = document.createElement("tr");
-        var safeName = f.name.replace(/'/g, "\\'");
         if (String(f.size) === "-1") {
-            tr.innerHTML = "<td>[dir]</td><td>" + f.name + "</td><td></td><td></td>";
+            tr.innerHTML = "<td>[dir]</td><td></td><td></td><td></td>";
+            tr.children[1].textContent = f.name;
         } else {
-            var isGcode = /\.g(code|co)?$/i.test(f.name);
-            var runBtn = isGcode
-                ? "<button type='button' class='ctrl primary' onclick=\"files_run('" + safeName + "')\">运行</button> "
-                : "";
-            tr.innerHTML = "<td>file</td><td>" + f.name + "</td><td>" + f.size + "</td><td>" +
-                runBtn +
-                "<button type='button' class='ctrl' onclick=\"files_delete('" + safeName + "')\">删除</button></td>";
+            var isGcode = /\.(gcode|gco|nc)$/i.test(f.name);
+            tr.appendChild(document.createElement("td")).textContent = "file";
+            tr.appendChild(document.createElement("td")).textContent = f.name;
+            tr.appendChild(document.createElement("td")).textContent = String(f.size);
+            var tdAct = document.createElement("td");
+            if (isGcode) {
+                tdAct.appendChild(files_make_action_btn("运行", "primary", "run", f.name));
+                tdAct.appendChild(document.createTextNode(" "));
+                tdAct.appendChild(files_make_action_btn("预览", "", "preview", f.name));
+                tdAct.appendChild(document.createTextNode(" "));
+            }
+            tdAct.appendChild(files_make_action_btn("删除", "", "delete", f.name));
+            tr.appendChild(tdAct);
         }
         tbody.appendChild(tr);
     });
+}
+
+function files_make_action_btn(label, extraClass, action, name) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ctrl" + (extraClass ? (" " + extraClass) : "");
+    btn.textContent = label;
+    btn.dataset.fileAction = action;
+    btn.dataset.fileName = name;
+    return btn;
+}
+
+function files_web_path_for_name(name) {
+    var path = files_currentPath || "/";
+    if (!path.endsWith("/")) path += "/";
+    return path + name;
+}
+
+function files_rel_path_for_name(name) {
+    return files_web_path_for_name(name).replace(/^\/+/, "");
+}
+
+/** G-code toolpath preview — inlined so firmware only needs app.js */
+var GCODE_PREVIEW_WORK_MM = 42;
+
+function gcode_preview_stripComments(line) {
+    var semi = line.indexOf(";");
+    if (semi >= 0) line = line.substring(0, semi);
+    return line.replace(/\([^)]*\)/g, "").trim();
+}
+
+function gcode_preview_parse(text) {
+    var segments = [];
+    var curX = 0, curY = 0, absMode = true, laserOn = false;
+    var lines = String(text || "").split(/\r?\n/);
+    for (var li = 0; li < lines.length; li++) {
+        var raw = gcode_preview_stripComments(lines[li]);
+        if (!raw) continue;
+        var upper = raw.toUpperCase();
+        var tokens = upper.split(/\s+/);
+        var isG0 = false, isG1 = false, hasX = false, hasY = false, xVal = 0, yVal = 0;
+        for (var ti = 0; ti < tokens.length; ti++) {
+            var t = tokens[ti];
+            if (t === "G90") absMode = true;
+            else if (t === "G91") absMode = false;
+            else if (t === "M3" || t === "M03") laserOn = true;
+            else if (t === "M5" || t === "M05") laserOn = false;
+            else if (t === "G0" || t === "G00") isG0 = true;
+            else if (t === "G1" || t === "G01") isG1 = true;
+            else if (t.charAt(0) === "X") { hasX = true; xVal = parseFloat(t.substring(1)); }
+            else if (t.charAt(0) === "Y") { hasY = true; yVal = parseFloat(t.substring(1)); }
+        }
+        if (!isG0 && !isG1) continue;
+        var nx = hasX ? (absMode ? xVal : curX + xVal) : curX;
+        var ny = hasY ? (absMode ? yVal : curY + yVal) : curY;
+        if (Math.abs(nx - curX) < 1e-6 && Math.abs(ny - curY) < 1e-6) continue;
+        segments.push({
+            x0: curX, y0: curY, x1: nx, y1: ny,
+            kind: (isG1 && !isG0 && laserOn) ? "engrave" : "travel"
+        });
+        curX = nx; curY = ny;
+    }
+    return segments;
+}
+
+function gcode_preview_mmToCanvas(mmX, mmY, w, h) {
+    return {
+        x: (mmX / GCODE_PREVIEW_WORK_MM) * w,
+        y: (1 - mmY / GCODE_PREVIEW_WORK_MM) * h
+    };
+}
+
+function gcode_preview_render(canvas, text) {
+    if (!canvas || !canvas.getContext) {
+        return { ok: false, segments: 0, error: "canvas unavailable" };
+    }
+    var ctx = canvas.getContext("2d");
+    var w = canvas.width, h = canvas.height;
+    var segments = gcode_preview_parse(text);
+    ctx.fillStyle = "#E8F4F2";
+    ctx.fillRect(0, 0, w, h);
+    if (!segments.length) {
+        return { ok: false, segments: 0, error: "未找到可绘制的 G0/G1 刀路" };
+    }
+    ctx.strokeStyle = "#B0BEC5";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+    for (var i = 0; i < segments.length; i++) {
+        var s = segments[i];
+        var p0 = gcode_preview_mmToCanvas(s.x0, s.y0, w, h);
+        var p1 = gcode_preview_mmToCanvas(s.x1, s.y1, w, h);
+        ctx.strokeStyle = s.kind === "engrave" ? "#1A3A4A" : "#B0BEC5";
+        ctx.lineWidth = s.kind === "engrave" ? 2 : 1;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.stroke();
+    }
+    return { ok: true, segments: segments.length };
+}
+
+function files_preview_show(name, statusText) {
+    var panel = $("files_preview_panel");
+    var nameEl = $("files_preview_name");
+    var statusEl = $("files_preview_status");
+    if (panel) {
+        panel.classList.remove("hide_it");
+        try { panel.scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (e) { panel.scrollIntoView(false); }
+    }
+    if (nameEl) nameEl.textContent = name || "—";
+    if (statusEl) statusEl.textContent = statusText || "";
+    return { panel: panel, canvas: $("files_preview_canvas"), statusEl: statusEl };
 }
 
 function files_run(name) {
@@ -255,6 +374,48 @@ function files_run(name) {
     var input = $("custom_cmd_txt");
     if (input) input.value = cmd;
     SendCustomCommand();
+}
+
+function files_preview(name) {
+    var webPath = files_web_path_for_name(name);
+    var ui = files_preview_show(name, "加载中…");
+    var canvas = ui.canvas;
+    var statusEl = ui.statusEl;
+    if (!canvas) {
+        if (statusEl) statusEl.textContent = "预览画布未找到，请刷新页面";
+        return;
+    }
+
+    var readUrl = "/files?action=read&path=" + encodeURIComponent(files_rel_path_for_name(name));
+    fetch(readUrl)
+        .then(function (r) {
+            if (!r.ok) {
+                return r.text().then(function (t) {
+                    throw new Error(t || ("读取失败 HTTP " + r.status));
+                });
+            }
+            return r.text();
+        })
+        .then(function (text) {
+            var result = gcode_preview_render(canvas, text);
+            if (statusEl) {
+                statusEl.textContent = result.ok
+                    ? ("已绘制 " + result.segments + " 段刀路")
+                    : (result.error || "预览失败");
+            }
+            if (!result.ok) return null;
+            return fetch("/preview", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ path: webPath })
+            });
+        })
+        .then(function (r) {
+            if (r && !r.ok) throw new Error("同步到设备失败 HTTP " + r.status);
+        })
+        .catch(function (e) {
+            files_preview_show(name, e.message || String(e));
+        });
 }
 
 function files_delete(name) {
@@ -677,6 +838,19 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("nav.tabs button").forEach(function (btn) {
         btn.addEventListener("click", function () { show_tab(btn.dataset.tab); });
     });
+    var fileList = $("file_list");
+    if (fileList) {
+        fileList.addEventListener("click", function (e) {
+            var btn = e.target.closest("button[data-file-action]");
+            if (!btn) return;
+            var action = btn.dataset.fileAction;
+            var fname = btn.dataset.fileName;
+            if (!fname) return;
+            if (action === "preview") files_preview(fname);
+            else if (action === "run") files_run(fname);
+            else if (action === "delete") files_delete(fname);
+        });
+    }
     $("send_btn").addEventListener("click", SendCustomCommand);
     $("custom_cmd_txt").addEventListener("keyup", function (e) {
         if (e.key === "Enter") SendCustomCommand();
