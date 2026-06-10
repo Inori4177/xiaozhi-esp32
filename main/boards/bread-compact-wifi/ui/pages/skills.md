@@ -81,16 +81,21 @@
 
 
 ### 小智语音ai
-界面右下角（包括底部状态栏，可以占据，就是整个屏幕的右小角放置）放60x80的小智ai形象，做成 全局 overlay 小助手，放在 外壳层。小智应该在最外层可以遮盖其他页面层
-xiaozhi图片都是放在D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai
-文件按状态分好，添加连续的图片接成几帧的动作：
-1.D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\INIT这是启动动画小智会在屏幕右侧不停上下跳动。大概1秒切换一次。1down-2up-1down-2up
-2."D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\IDLE"这是空闲状态下三个小智ai图片，分别是睁眼-半闭眼-闭眼-----每隔30s循环一次连续的1s半闭眼和1s闭眼再持续30s睁眼状态的动作
-D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\IDLE\openeyes.png为默认状态
-3.
-"D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\SPEAK"这是小智说话中状态的张嘴图片，说话中切换这个状态，不说话就切回默认状态-D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\IDLE\openeyes.png
-4."D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\RUN"为雕刻运行中，切换这个状态，1秒切换一张，按1-2-3-4的顺序切换，
-雕刻完成就切回默认状态-D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\IDLE\openeyes.png
+语音 AI 页内容区：小智精灵 **77×99** 透明背景，**原地走帧动画 + 代码平移** 实现左右来回走动。
+
+资源目录：`main/boards/bread-compact-wifi/ui/assets/png/xiaozhiai`
+
+
+
+1. **IDLE/walk/** — 机器闲置时在语音页循环：从左侧出发，播 `right1..6` 向右走 → 触达右边界后播 `left1..6` 向左走 → 重复。非闲置停在左侧 `left1`。
+转换： `scripts/Image_Converter/LVGLImage.py --ofmt C --cf RGB565A8 --compress NONE -o ui/assets/images ui/assets/png/xiaozhiai/IDLE/walk`
+
+
+2. **INIT/** — 启动动画（后续实现）
+3. **SPEAK/** — 说话中（后续实现）
+4. **RUN/matted_frames/** — 82×99，内容区居中循环挥手（`matte_00001..18`）。空闲→运行瞬间自动打开语音页；运行中循环播；暂停冻结当前帧；结束回空闲则恢复 IDLE 行走动画。
+
+转换： `scripts/Image_Converter/LVGLImage.py --ofmt C --cf RGB565A8 --compress NONE -o ui/assets/images ui/assets/png/xiaozhiai/RUN/matted_frames`
 
 ## 视觉样式原则
 

@@ -75,6 +75,23 @@
 #define UI_PAGE_OPEN_ANIM_MS   200
 #define UI_PAGE_CLOSE_ANIM_MS  100
 
+/* 语音 AI 页 — 小智 walk 精灵 (77×99，原地帧 + 代码平移) */
+#define UI_XIAOZHI_SPRITE_W       77
+#define UI_XIAOZHI_SPRITE_H       99
+#define UI_XIAOZHI_WALK_MARGIN_X  16
+#define UI_XIAOZHI_WALK_MIN_X     UI_XIAOZHI_WALK_MARGIN_X
+#define UI_XIAOZHI_WALK_MAX_X     (UI_CONTENT_W - UI_XIAOZHI_SPRITE_W - UI_XIAOZHI_WALK_MARGIN_X)
+#define UI_XIAOZHI_WALK_Y         ((UI_MAIN_H - UI_XIAOZHI_SPRITE_H) / 2)
+#define UI_XIAOZHI_WALK_FRAME_MS  80
+#define UI_XIAOZHI_WALK_STEP_X    2
+
+/* 语音 AI 页 — RUN 挥手精灵 (82×99，内容区居中) */
+#define UI_XIAOZHI_RUN_SPRITE_W   82
+#define UI_XIAOZHI_RUN_SPRITE_H   99
+#define UI_XIAOZHI_RUN_CENTER_X   ((UI_CONTENT_W - UI_XIAOZHI_RUN_SPRITE_W) / 2)
+#define UI_XIAOZHI_RUN_CENTER_Y   ((UI_MAIN_H - UI_XIAOZHI_RUN_SPRITE_H) / 2)
+#define UI_XIAOZHI_RUN_FRAME_MS   80
+
 /* ---------- 宸︿晶鍥剧墖瀵艰埅 ---------- */
 #define UI_NAV_IMAGE_X          0
 #define UI_NAV_IMAGE_Y          8

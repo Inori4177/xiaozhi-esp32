@@ -3,6 +3,7 @@
 #include "laser_ui_layout.h"
 #include "laser_ui_widgets.h"
 #include "assets/laser_ui_images.h"
+#include "cnc/ui_cnc_print_service.h"
 #include "pages/page_pick.h"
 #include "pages/page_print.h"
 #include "pages/page_settings.h"
@@ -11,6 +12,9 @@
 #include <cstdint>
 
 namespace {
+
+ui_cnc_work_state_t g_shell_last_cnc_state = UI_CNC_WORK_IDLE;
+lv_timer_t *g_cnc_poll_timer = nullptr;
 
 const lv_image_dsc_t *nav_image_for_page(LaserPage page)
 {
@@ -78,6 +82,9 @@ void shell_notify_page_hide(LaserPage page)
     if (page == LaserPage::Print) {
         page_print_on_hide();
     }
+    if (page == LaserPage::VoiceAi) {
+        page_voice_ai_on_hide();
+    }
 }
 
 void shell_notify_page_show(LaserPage page)
@@ -87,6 +94,9 @@ void shell_notify_page_show(LaserPage page)
     }
     if (page == LaserPage::Print) {
         page_print_on_show();
+    }
+    if (page == LaserPage::VoiceAi) {
+        page_voice_ai_on_show();
     }
 }
 
@@ -203,6 +213,23 @@ lv_obj_t *create_nav_hotspot(LaserUiShell *shell, int x, int y, int w, int h, La
     return hotspot;
 }
 
+void cnc_state_poll_cb(lv_timer_t *timer)
+{
+    auto *shell = static_cast<LaserUiShell *>(lv_timer_get_user_data(timer));
+    if (shell == nullptr) {
+        return;
+    }
+
+    ui_cnc_print_status_t st{};
+    ui_cnc_print_service_get_status(&st);
+
+    if (g_shell_last_cnc_state == UI_CNC_WORK_IDLE && st.state == UI_CNC_WORK_RUNNING) {
+        shell_open_page(shell, LaserPage::VoiceAi, true);
+    }
+
+    g_shell_last_cnc_state = st.state;
+}
+
 }  // namespace
 
 void laser_ui_shell_switch_page(LaserUiShell *shell, LaserPage page)
@@ -285,4 +312,8 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
 
     shell_raise_nav_layer(shell);
     shell_open_page(shell, LaserPage::Print, false);
+
+    if (g_cnc_poll_timer == nullptr) {
+        g_cnc_poll_timer = lv_timer_create(cnc_state_poll_cb, 250, shell);
+    }
 }
