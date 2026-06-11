@@ -1,6 +1,7 @@
 #include "ui_gcode_preview_service.h"
 
 #include "../cnc/ui_cnc_config.h"
+#include "../pick/ui_pick_map_preview.h"
 #include "ui_gcode_preview.h"
 
 #ifndef UI_GCODE_PREVIEW_PATH_MAX
@@ -171,15 +172,6 @@ void ui_gcode_preview_unbind_ui(void)
     s_ui.status_label = nullptr;
 }
 
-static void bound_refresh_async(void *user_data)
-{
-    (void)user_data;
-    if (!s_ui.bound || s_ui.canvas == nullptr) {
-        return;
-    }
-    ui_gcode_preview_refresh(s_ui.canvas, s_ui.name_label, s_ui.status_label);
-}
-
 void ui_gcode_preview_set_path(const char *vfs_path)
 {
     if (vfs_path == nullptr) {
@@ -189,8 +181,8 @@ void ui_gcode_preview_set_path(const char *vfs_path)
     strncpy(s_vfs_path, vfs_path, sizeof(s_vfs_path) - 1);
     s_vfs_path[sizeof(s_vfs_path) - 1] = '\0';
     ESP_LOGI(TAG, "preview path: %s", s_vfs_path);
-    if (s_vfs_path[0] != '\0' && s_ui.bound) {
-        lv_async_call(bound_refresh_async, nullptr);
+    if (s_vfs_path[0] != '\0') {
+        ui_pick_map_preview_load_path(s_vfs_path);
     }
 }
 

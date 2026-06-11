@@ -6,7 +6,6 @@
 #include "../cnc/ui_cnc_print_status_service.h"
 #include "../cnc/ui_cnc_print_status_layout.h"
 #include "../cnc/ui_cnc_print_status_font.h"
-#include "../gcode/ui_gcode_preview_service.h"
 #include "../../laser_ui_state.h"
 
 #include <cstdint>
@@ -22,9 +21,6 @@ static lv_obj_t *g_status_bar = nullptr;
 static lv_obj_t *g_status_pct = nullptr;
 static lv_obj_t *g_pos_x_label = nullptr;
 static lv_obj_t *g_pos_y_label = nullptr;
-static lv_obj_t *g_preview_canvas = nullptr;
-static lv_obj_t *g_preview_name = nullptr;
-static lv_obj_t *g_preview_status = nullptr;
 
 #define PRINT_STATUS_H       UI_PRINT_STATUS_PANEL_H
 #define PRINT_STATUS_PAD     4
@@ -38,12 +34,6 @@ static lv_obj_t *g_preview_status = nullptr;
 #define PRINT_STATUS_GAP     6
 #define PRINT_BODY_Y         (PRINT_STATUS_H + PRINT_STATUS_GAP)
 #define PRINT_BODY_H         (UI_MAIN_H - PRINT_BODY_Y)
-#define PRINT_PREVIEW_SECTION_H  220
-#define PRINT_PREVIEW_CANVAS_X   ((UI_CONTENT_W - UI_GCODE_PREVIEW_CANVAS_PX) / 2)
-#define PRINT_PREVIEW_TITLE_Y    4
-#define PRINT_PREVIEW_NAME_Y     24
-#define PRINT_PREVIEW_CANVAS_Y   48
-#define PRINT_PREVIEW_STATUS_Y   (PRINT_PREVIEW_CANVAS_Y + UI_GCODE_PREVIEW_CANVAS_PX + 6)
 #define PRINT_BG_W           426
 #define PRINT_BG_H           187
 #define PRINT_BG_X           0
@@ -238,68 +228,12 @@ static void create_print_body(lv_obj_t *body)
                       LASER_EVT_JOG_HOME, UI_COLOR_ACCENT, LV_RADIUS_CIRCLE);
 }
 
-static void create_print_preview_section(lv_obj_t *scroll_cont)
+static void create_print_body_area(lv_obj_t *page)
 {
-    lv_obj_t *section = lv_obj_create(scroll_cont);
-    lv_obj_set_pos(section, 0, PRINT_BODY_H);
-    lv_obj_set_size(section, UI_CONTENT_W, PRINT_PREVIEW_SECTION_H);
-    style_transparent_panel(section);
-
-    lv_obj_t *title = lv_label_create(section);
-    lv_label_set_text(title, "预览");
-    lv_obj_set_pos(title, 8, PRINT_PREVIEW_TITLE_Y);
-    ui_cnc_print_status_apply_font(title);
-    lv_obj_set_style_text_color(title, UI_COLOR_TEXT, LV_PART_MAIN);
-
-    g_preview_name = lv_label_create(section);
-    lv_label_set_text(g_preview_name, "—");
-    lv_obj_set_pos(g_preview_name, 48, PRINT_PREVIEW_NAME_Y);
-    lv_obj_set_width(g_preview_name, UI_CONTENT_W - 56);
-    lv_label_set_long_mode(g_preview_name, LV_LABEL_LONG_DOT);
-    ui_cnc_print_status_apply_font(g_preview_name);
-    lv_obj_set_style_text_color(g_preview_name, UI_COLOR_TEXT_SEC, LV_PART_MAIN);
-
-    g_preview_canvas = lv_canvas_create(section);
-    lv_obj_set_pos(g_preview_canvas, PRINT_PREVIEW_CANVAS_X, PRINT_PREVIEW_CANVAS_Y);
-    lv_obj_set_size(g_preview_canvas, UI_GCODE_PREVIEW_CANVAS_PX, UI_GCODE_PREVIEW_CANVAS_PX);
-    lv_obj_set_style_border_color(g_preview_canvas, UI_COLOR_LIGHT_BORDER, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_preview_canvas, 1, LV_PART_MAIN);
-    lv_obj_remove_flag(g_preview_canvas, LV_OBJ_FLAG_SCROLLABLE);
-    ui_gcode_preview_bind_canvas(g_preview_canvas);
-
-    g_preview_status = lv_label_create(section);
-    lv_label_set_text(g_preview_status, "");
-    lv_obj_set_pos(g_preview_status, 8, PRINT_PREVIEW_STATUS_Y);
-    lv_obj_set_width(g_preview_status, UI_CONTENT_W - 16);
-    lv_label_set_long_mode(g_preview_status, LV_LABEL_LONG_WRAP);
-    ui_cnc_print_status_apply_font(g_preview_status);
-    lv_obj_set_style_text_color(g_preview_status, UI_COLOR_TEXT_SEC, LV_PART_MAIN);
-}
-
-static void create_print_scroll_area(lv_obj_t *page)
-{
-    lv_obj_t *scroll = lv_obj_create(page);
-    lv_obj_set_pos(scroll, 0, PRINT_BODY_Y);
-    lv_obj_set_size(scroll, UI_CONTENT_W, PRINT_BODY_H);
-    style_transparent_panel(scroll);
-    lv_obj_add_flag(scroll, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(scroll, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(scroll, LV_SCROLLBAR_MODE_OFF);
-
-    const int content_h = PRINT_BODY_H + PRINT_PREVIEW_SECTION_H;
-    lv_obj_t *content = lv_obj_create(scroll);
-    lv_obj_set_pos(content, 0, 0);
-    lv_obj_set_size(content, UI_CONTENT_W, content_h);
-    style_transparent_panel(content);
-    lv_obj_remove_flag(content, LV_OBJ_FLAG_SCROLLABLE);
-
-    lv_obj_t *body = lv_obj_create(content);
-    lv_obj_set_pos(body, 0, 0);
+    lv_obj_t *body = lv_obj_create(page);
+    lv_obj_set_pos(body, 0, PRINT_BODY_Y);
     lv_obj_set_size(body, UI_CONTENT_W, PRINT_BODY_H);
-    style_transparent_panel(body);
     create_print_body(body);
-
-    create_print_preview_section(content);
 }
 
 lv_obj_t *page_print_create(lv_obj_t *parent)
@@ -377,7 +311,7 @@ lv_obj_t *page_print_create(lv_obj_t *parent)
     style_status_label(pct, UI_COLOR_TEXT, STATUS_ROW_PROG_H);
     g_status_pct = pct;
 
-    create_print_scroll_area(page);
+    create_print_body_area(page);
     return page;
 }
 
@@ -386,13 +320,9 @@ void page_print_on_show(void)
     ui_cnc_print_status_service_on_page_show(g_status_badge, g_status_elapsed, g_status_eta,
                                              g_status_bar, g_status_pct, g_pos_x_label,
                                              g_pos_y_label);
-    ui_gcode_preview_bind_ui(g_preview_canvas, g_preview_name, g_preview_status);
-    ui_gcode_preview_refresh(g_preview_canvas, g_preview_name, g_preview_status);
 }
 
 void page_print_on_hide(void)
 {
     ui_cnc_print_status_service_on_page_hide();
-    ui_gcode_preview_unbind_ui();
-    ui_gcode_preview_cancel();
 }

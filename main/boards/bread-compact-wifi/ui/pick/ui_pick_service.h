@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../cnc/ui_cnc_coord_map.h"
+
 #include <lvgl.h>
 
 #ifdef __cplusplus
@@ -30,6 +32,8 @@ void ui_pick_service_set_cursor_from_local_px(int local_x, int local_y);
 void ui_pick_service_touch_end(int local_x, int local_y);
 
 void ui_pick_service_update_viewport_from_map_frame(void);
+
+const ui_cnc_coord_viewport_t *ui_pick_service_get_viewport(void);
 
 #ifdef __cplusplus
 }

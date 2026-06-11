@@ -1,5 +1,6 @@
 #include "ui_pick_service.h"
 
+#include "ui_pick_map_preview.h"
 #include "../laser_ui_events.h"
 #include "../cnc/ui_cnc_config.h"
 #include "../cnc/ui_cnc_coord_map.h"
@@ -79,6 +80,8 @@ static void refresh_head_dot_async(void *user_data)
 
     const int dot_r = lv_obj_get_width(g_head_dot) / 2;
     lv_obj_set_pos(g_head_dot, px - dot_r, py - dot_r);
+
+    ui_pick_map_preview_on_position_mm(hx, hy);
 
     if (g_status_label != nullptr && !ui_cnc_print_service_is_busy()) {
         const char *txt = lv_label_get_text(g_status_label);
@@ -202,6 +205,7 @@ static void on_pick_event(laser_ui_event_id_t id, void *user_data)
             update_coord_label();
         }
         ui_cnc_print_service_move_to_mm_async(g_cursor_mm_x, g_cursor_mm_y);
+        ui_pick_map_preview_on_origin_changed();
         ESP_LOGI(TAG, "Pick confirm origin=(%.1f, %.1f) mm", static_cast<double>(g_cursor_mm_x),
                  static_cast<double>(g_cursor_mm_y));
         break;
@@ -224,6 +228,7 @@ static void on_pick_event(laser_ui_event_id_t id, void *user_data)
             lv_obj_add_flag(g_status_label, LV_OBJ_FLAG_HIDDEN);
         }
         ui_cnc_print_service_home_async();
+        ui_pick_map_preview_on_origin_changed();
         ESP_LOGI(TAG, "Pick reset to (0, 0)");
         break;
     default:
@@ -316,6 +321,11 @@ void ui_pick_service_update_viewport_from_map_frame(void)
         return;
     }
     ui_cnc_coord_viewport_init(&g_vp, lv_obj_get_width(g_map_frame), lv_obj_get_height(g_map_frame), 0);
+}
+
+const ui_cnc_coord_viewport_t *ui_pick_service_get_viewport(void)
+{
+    return &g_vp;
 }
 
 void ui_pick_service_touch_begin(int local_x, int local_y)

@@ -2,6 +2,10 @@
 #include "peer_uart_link.h"
 
 #include "../laser_ui_state.h"
+#include "../ui/gcode/ui_gcode_preview.h"
+#if CONFIG_MSP3525_LASER_UI
+#include "../ui/pick/ui_pick_map_preview.h"
+#endif
 #include "boards/webui/webui_config.h"
 #include "boards/webui/webui_log.h"
 #include "boards/webui/webui_ws.h"
@@ -157,9 +161,8 @@ static void parse_status(const cJSON *root)
     const cJSON *file = cJSON_GetObjectItem(root, "file");
 
     if (s_local_file_job && s_await_cnc_idle) {
-        if (cJSON_IsNumber(pct)) {
-            s_status.progress_pct = static_cast<uint8_t>(pct->valueint);
-        }
+        /* Lines already sent (progress_pct=100). Peer pct tracks motion execution
+         * lag and would briefly show ~1–5% until the queue drains — ignore it. */
         if (cJSON_IsNumber(state)) {
             s_status.state = static_cast<ui_cnc_work_state_t>(state->valueint);
         }
@@ -313,11 +316,27 @@ static void file_stream_task(void *arg)
              static_cast<unsigned>(lines.size()));
     send_json(begin);
 
+    float origin_x = 0.0f;
+    float origin_y = 0.0f;
+    const bool has_origin = laser_ui_state_get_pick_origin(&origin_x, &origin_y);
+    bool abs_mode = true;
+
     for (size_t i = 0; i < lines.size(); ++i) {
         while (s_has_suspended) {
             vTaskDelay(pdMS_TO_TICKS(50));
         }
-        send_cmd_gcode(lines[i].c_str());
+        char line_buf[256];
+        strncpy(line_buf, lines[i].c_str(), sizeof(line_buf) - 1);
+        line_buf[sizeof(line_buf) - 1] = '\0';
+        if (has_origin) {
+            ui_gcode_preview_offset_gcode_line(line_buf, sizeof(line_buf), &abs_mode, origin_x,
+                                             origin_y);
+        } else if (strstr(line_buf, "G90") != nullptr) {
+            abs_mode = true;
+        } else if (strstr(line_buf, "G91") != nullptr) {
+            abs_mode = false;
+        }
+        send_cmd_gcode(line_buf);
         s_status.progress_pct =
             static_cast<uint8_t>(((i + 1U) * 100U) / static_cast<unsigned>(lines.size()));
         refresh_local_elapsed();
@@ -485,6 +504,9 @@ void peer_cnc_client_on_ui_event(laser_ui_event_id_t id)
         break;
     case LASER_EVT_SETTINGS_APPLY:
         peer_cnc_client_apply_settings();
+#if CONFIG_MSP3525_LASER_UI
+        ui_pick_map_preview_refresh_colors();
+#endif
         break;
     default:
         ESP_LOGW(TAG, "ui event not handled by peer: %s", laser_ui_event_name(id));

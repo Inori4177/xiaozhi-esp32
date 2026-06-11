@@ -13,6 +13,7 @@
 extern "C" {
 #include "laser_ui_state.h"
 #include "ui/cnc/ui_cnc_config.h"
+#include "ui/pick/ui_pick_map_preview.h"
 }
 #endif
 #if CONFIG_INTERACTION_PEER_VOICE
@@ -131,6 +132,7 @@ extern "C" esp_err_t webui_settings_handler(httpd_req_t *req)
     const bool apply_cnc = parse_json_bool(body, "apply_cnc", false);
     if (power >= 0) {
         laser_ui_state_set_power_pct(power);
+        ui_pick_map_preview_refresh_colors();
     }
     if (speed >= 0) {
         laser_ui_state_set_speed_pct(speed);
@@ -178,6 +180,7 @@ extern "C" esp_err_t webui_pick_handler(httpd_req_t *req)
 
     if (strstr(body, "\"reset\"") != nullptr || strstr(body, "\"action\":\"reset\"") != nullptr) {
         laser_ui_state_clear_pick_origin();
+        ui_pick_map_preview_on_origin_changed();
         if (!webui_cnc_home()) {
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "home failed");
             return ESP_FAIL;
@@ -208,6 +211,7 @@ extern "C" esp_err_t webui_pick_handler(httpd_req_t *req)
     }
 
     laser_ui_state_set_pick_origin(x, y);
+    ui_pick_map_preview_on_origin_changed();
     if (!webui_cnc_move_to_mm_async(x, y)) {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "move failed");
         return ESP_FAIL;

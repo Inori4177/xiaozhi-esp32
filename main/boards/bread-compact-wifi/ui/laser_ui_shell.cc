@@ -8,6 +8,7 @@
 #include "pages/page_print.h"
 #include "pages/page_settings.h"
 #include "pages/page_voice_ai.h"
+#include "pick/ui_pick_map_preview.h"
 
 #include <cstdint>
 
@@ -224,7 +225,17 @@ void cnc_state_poll_cb(lv_timer_t *timer)
     ui_cnc_print_service_get_status(&st);
 
     if (g_shell_last_cnc_state == UI_CNC_WORK_IDLE && st.state == UI_CNC_WORK_RUNNING) {
-        shell_open_page(shell, LaserPage::VoiceAi, true);
+        shell_open_page(shell, LaserPage::Pick, true);
+    }
+
+    if ((g_shell_last_cnc_state == UI_CNC_WORK_RUNNING ||
+         g_shell_last_cnc_state == UI_CNC_WORK_PAUSED) &&
+        st.state == UI_CNC_WORK_IDLE) {
+        ui_pick_map_preview_clear();
+    }
+
+    if (st.state == UI_CNC_WORK_RUNNING || st.state == UI_CNC_WORK_PAUSED) {
+        ui_pick_map_preview_on_job_progress(st.progress_pct);
     }
 
     g_shell_last_cnc_state = st.state;

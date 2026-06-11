@@ -13,6 +13,7 @@
 #include "../pick/ui_pick_keypad_input.h"
 
 #include "../pick/ui_pick_service.h"
+#include "../pick/ui_pick_map_preview.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -335,6 +336,7 @@ static void relayout_map_frame(void)
         lv_obj_align(g_map_frame, LV_ALIGN_BOTTOM_MID, 0, 0);
 
         ui_pick_service_update_viewport_from_map_frame();
+        ui_pick_map_preview_on_map_resized(side);
 
     }
 
@@ -870,7 +872,8 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
 
     laser_ui_add_map_grid(g_map_frame, UI_COLOR_ACCENT);
 
-
+    ui_pick_map_preview_init();
+    ui_pick_map_preview_create_overlay(g_map_frame);
 
     g_head_dot = create_head_dot(g_map_frame);
 
@@ -1071,6 +1074,7 @@ void page_pick_on_show(void)
 
     relayout_map_frame();
     relayout_keyboard_panel();
+    ui_pick_map_preview_on_page_show();
 
 }
 
@@ -1081,6 +1085,7 @@ void page_pick_on_hide(void)
 {
 
     stop_coord_editing(false);
+    ui_pick_map_preview_on_page_hide();
     ui_pick_service_on_page_hide();
 
 }

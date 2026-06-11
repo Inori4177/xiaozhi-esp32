@@ -4,6 +4,7 @@
 #include "ui_cnc_print_service.h"
 
 #include "../laser_ui_events.h"
+#include "../pick/ui_pick_map_preview.h"
 #include "../../laser_ui_state.h"
 
 #if CONFIG_INTERACTION_PEER_UART
@@ -89,7 +90,11 @@ bool ui_cnc_print_service_jog_axis_mm(char axis, bool positive, float step_mm)
 bool ui_cnc_print_service_execute_gcode_file(const char *vfs_path)
 {
 #if CONFIG_INTERACTION_PEER_UART
-    return peer_cnc_client_execute_gcode_file(vfs_path);
+    const bool ok = peer_cnc_client_execute_gcode_file(vfs_path);
+    if (ok && vfs_path != nullptr) {
+        ui_pick_map_preview_start_run(vfs_path);
+    }
+    return ok;
 #else
     (void)vfs_path;
     return false;

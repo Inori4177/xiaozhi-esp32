@@ -97,6 +97,8 @@
 
 转换： `scripts/Image_Converter/LVGLImage.py --ofmt C --cf RGB565A8 --compress NONE -o ui/assets/images ui/assets/png/xiaozhiai/RUN/matted_frames`
 
+将运行小智动画修改到选定页右下角，注意上方的确定和回零按键向上移动腾出位置，小智可以放在整个屏幕右下角开始算起，可以占用底部状态栏，
+
 ## 视觉样式原则
 
 1. **发光层次**: border(1px) → outline(2-3px) → shadow(6-14px)，由近到远三层发光
