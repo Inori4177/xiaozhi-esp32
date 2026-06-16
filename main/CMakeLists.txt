@@ -1211,7 +1211,7 @@ endif()
 
 # Function to build default assets based on configuration
 function(prepare_laser_ui_init_bins output_dir_var output_stamp_var)
-    set(LASER_UI_INIT_PNG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/ui/assets/png/xiaozhiai/INIT")
+    set(LASER_UI_INIT_PNG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/ui/assets/png/xiaozhiai/INIT/init")
     file(GLOB LASER_UI_INIT_PNGS "${LASER_UI_INIT_PNG_DIR}/*.png")
     set(LASER_UI_INIT_BIN_DIR "${CMAKE_BINARY_DIR}/laser_ui_init_bins")
     set(LASER_UI_INIT_STAMP "${CMAKE_BINARY_DIR}/laser_ui_init_bins.stamp")

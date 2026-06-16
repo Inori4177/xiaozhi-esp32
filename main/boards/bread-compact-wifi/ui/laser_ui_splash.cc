@@ -33,19 +33,19 @@ static const char *const kSplashSlogan =
     "AI";
 
 static constexpr int kSplashContentGap = 1;
-static constexpr uint32_t kSplashInitFrameDefaultMs = 212;
-/** init1 多停一会儿，拉开与 init2 的间距 */
-static constexpr uint32_t kSplashInitFrame1HoldMs = 480;
-static constexpr uint32_t kSplashInitFrame2HoldMs = 380;
-/** init10 末帧加长再切 slogan */
-static constexpr uint32_t kSplashInitFrame10HoldMs = 900;
+static constexpr uint32_t kSplashInitFrame1To5HoldMs = 125;
+static constexpr uint32_t kSplashInitFrame6To9HoldMs = 125;
+static constexpr uint32_t kSplashInitFrame10To12HoldMs = 160;   
+static constexpr uint32_t kSplashInitFrame13To17HoldMs = 125;
+static constexpr uint32_t kSplashInitFrame18To24HoldMs = 125;
+static constexpr uint32_t kSplashInitFrame25To27HoldMs =125;
 static constexpr uint32_t kSplashSloganTickMs = 212;
 static constexpr uint32_t kSplashSloganFadeDelayMs = 0;
 static constexpr uint32_t kSplashSloganFadeMs = 2200;
 static constexpr uint32_t kSplashSloganHoldMs = 500;
-static constexpr int kSplashInitW = 173;
-static constexpr int kSplashInitH = 130;
-static constexpr unsigned kSplashInitFrameCount = 10;
+static constexpr int kSplashInitW = 217;
+static constexpr int kSplashInitH = 180;
+static constexpr unsigned kSplashInitFrameCount = 27;
 
 enum SplashStage {
     SPLASH_STAGE_INIT = 0,
@@ -73,16 +73,23 @@ static SplashContext g_splash;
 
 static uint32_t splash_init_frame_hold_ms(unsigned frame_idx)
 {
-    if (frame_idx == 0) {
-        return kSplashInitFrame1HoldMs;
+    const unsigned frame_no = frame_idx + 1U;
+    if (frame_no <= 5U) {
+        return kSplashInitFrame1To5HoldMs;
     }
-    if (frame_idx == 1) {
-        return kSplashInitFrame2HoldMs;
+    if (frame_no <= 9U) {
+        return kSplashInitFrame6To9HoldMs;
     }
-    if (frame_idx + 1U >= kSplashInitFrameCount) {
-        return kSplashInitFrame10HoldMs;
+    if (frame_no <= 12U) {
+        return kSplashInitFrame10To12HoldMs;
     }
-    return kSplashInitFrameDefaultMs;
+    if (frame_no <= 17U) {
+        return kSplashInitFrame13To17HoldMs;
+    }
+    if (frame_no <= 24U) {
+        return kSplashInitFrame18To24HoldMs;
+    }
+    return kSplashInitFrame25To27HoldMs;
 }
 
 static void splash_set_stage_timer_period(lv_timer_t *timer, uint32_t period_ms)
@@ -101,7 +108,7 @@ static bool splash_load_init_frames(void)
 
     for (unsigned i = 1; i <= kSplashInitFrameCount; ++i) {
         char name[16];
-        snprintf(name, sizeof(name), "init%u.bin", i);
+        snprintf(name, sizeof(name), "init_%u.bin", i);
 
         void *ptr = nullptr;
         size_t size = 0;
