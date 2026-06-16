@@ -87,17 +87,24 @@
 
 
 
-1. **IDLE/walk/** — 机器闲置时在语音页循环：从左侧出发，播 `right1..6` 向右走 → 触达右边界后播 `left1..6` 向左走 → 重复。非闲置停在左侧 `left1`。
-转换： `scripts/Image_Converter/LVGLImage.py --ofmt C --cf RGB565A8 --compress NONE -o ui/assets/images ui/assets/png/xiaozhiai/IDLE/walk`
+1. **IDLE/walk/** — 
+"D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\IDLE\blink"
+机器闲置时在选定页右下角循环，（可以遮挡底部状态栏），注意只有9帧眨眼动作图片，要缓慢一点比较自然
 
 
 2. **INIT/** — 启动动画（后续实现）
-3. **SPEAK/** — 说话中（后续实现）
-4. **RUN/matted_frames/** — 82×99，内容区居中循环挥手（`matte_00001..18`）。空闲→运行瞬间自动打开语音页；运行中循环播；暂停冻结当前帧；结束回空闲则恢复 IDLE 行走动画。
+3. **SPEAK/** — 说话中
+D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\SPEAK
+语音助手页面：小智放在屏幕右侧且居中。左侧新增显示小智对话记录的对话框。
+小智 说话中时循环张嘴闭嘴的连续说话动作。当为聆听中/其他状态时切到speak_5close.png静态默认图片："D:\_esp32\lcd_test\test\xiaozhi-esp32-main\main\boards\bread-compact-wifi\ui\assets\png\xiaozhiai\SPEAK\speak_5close.png"
+
+
+
+4. **RUN/matted_frames/** — 82×99，内容区居中循环挥手（`matte_00001..7`）。空闲→运行瞬间自动打开选定页；运行中循环播；暂停冻结当前帧；结束回空闲则恢复 IDLE 眨眼blink动画。
 
 转换： `scripts/Image_Converter/LVGLImage.py --ofmt C --cf RGB565A8 --compress NONE -o ui/assets/images ui/assets/png/xiaozhiai/RUN/matted_frames`
 
-将运行小智动画修改到选定页右下角，注意上方的确定和回零按键向上移动腾出位置，小智可以放在整个屏幕右下角开始算起，可以占用底部状态栏，
+运行小智动画也在选定页右下角，注意上方的确定和回零按键向上移动腾出位置，小智可以放在整个屏幕右下角开始算起，可以占用底部状态栏，
 
 ## 视觉样式原则
 

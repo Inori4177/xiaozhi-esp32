@@ -1,5 +1,6 @@
 #include "laser_ui.h"
 #include "laser_ui_shell.h"
+#include "laser_ui_xiaozhi_presenter.h"
 #include "laser_ui_events.h"
 #include "cnc/ui_cnc_print_service.h"
 #include "cnc/ui_cnc_print_status_service.h"
@@ -35,6 +36,7 @@ void laser_ui_init(Display *display)
     if (g_shell.root != nullptr) {
         lv_obj_move_foreground(g_shell.root);
     }
+    laser_ui_xiaozhi_presenter_raise_overlay();
 
     g_initialized = true;
     ESP_LOGI(TAG, "Laser UI ready (480x320), internal free %u min %u",

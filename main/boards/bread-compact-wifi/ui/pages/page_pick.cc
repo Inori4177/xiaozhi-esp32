@@ -957,6 +957,7 @@ lv_obj_t *page_pick_create(lv_obj_t *parent)
 
     lv_obj_set_style_pad_row(g_btn_col, UI_PICK_BTN_GAP, LV_PART_MAIN);
     lv_obj_set_flex_flow(g_btn_col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_translate_y(g_btn_col, UI_PICK_BTN_SHIFT_Y, LV_PART_MAIN);
 
     lv_obj_set_flex_align(g_btn_col, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
 
@@ -1089,5 +1090,4 @@ void page_pick_on_hide(void)
     ui_pick_service_on_page_hide();
 
 }
-
 

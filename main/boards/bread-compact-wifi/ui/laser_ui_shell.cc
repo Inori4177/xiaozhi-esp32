@@ -1,6 +1,7 @@
 #include "laser_ui_shell.h"
 
 #include "laser_ui_layout.h"
+#include "laser_ui_xiaozhi_presenter.h"
 #include "laser_ui_widgets.h"
 #include "assets/laser_ui_images.h"
 #include "cnc/ui_cnc_print_service.h"
@@ -27,7 +28,7 @@ const lv_image_dsc_t *nav_image_for_page(LaserPage page)
     case LaserPage::Pick:
         return &pickpage;
     case LaserPage::VoiceAi:
-        return &xiaozhipage;
+        return &xiaozhi_page;
     case LaserPage::Count:
         break;
     }
@@ -129,6 +130,7 @@ void shell_open_page(LaserUiShell *shell, LaserPage page, bool animate)
     shell->current = page;
     shell->page_open = true;
     shell_set_nav_state(shell, page);
+    laser_ui_xiaozhi_presenter_set_current_page(page);
 
     lv_obj_t *target = shell->pages[static_cast<int>(page)];
     if (target == nullptr) {
@@ -264,6 +266,7 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
     lv_obj_set_style_pad_all(shell->root, 0, LV_PART_MAIN);
     lv_obj_clear_flag(shell->root, LV_OBJ_FLAG_SCROLLABLE);
     laser_ui_add_background_pattern(shell->root);
+    laser_ui_xiaozhi_presenter_init(screen);
 
     shell->content_host = lv_obj_create(shell->root);
     lv_obj_set_size(shell->content_host, UI_CONTENT_W, UI_MAIN_H);
@@ -280,6 +283,7 @@ void laser_ui_shell_init(LaserUiShell *shell, lv_obj_t *screen)
     shell->pages[static_cast<int>(LaserPage::Settings)] = page_settings_create(shell->content_host);
     shell->pages[static_cast<int>(LaserPage::Pick)] = page_pick_create(shell->content_host);
     shell->pages[static_cast<int>(LaserPage::VoiceAi)] = page_voice_ai_create(shell->content_host);
+    laser_ui_xiaozhi_presenter_bind_voice_page(shell->pages[static_cast<int>(LaserPage::VoiceAi)]);
 
     for (int i = 0; i < static_cast<int>(LaserPage::Count); ++i) {
         if (shell->pages[i] == nullptr) {

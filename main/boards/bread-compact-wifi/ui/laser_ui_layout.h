@@ -86,11 +86,17 @@
 #define UI_XIAOZHI_WALK_STEP_X    2
 
 /* 语音 AI 页 — RUN 挥手精灵 (82×99，内容区居中) */
-#define UI_XIAOZHI_RUN_SPRITE_W   82
-#define UI_XIAOZHI_RUN_SPRITE_H   99
+#define UI_XIAOZHI_RUN_SPRITE_W   74
+#define UI_XIAOZHI_RUN_SPRITE_H   90
 #define UI_XIAOZHI_RUN_CENTER_X   ((UI_CONTENT_W - UI_XIAOZHI_RUN_SPRITE_W) / 2)
 #define UI_XIAOZHI_RUN_CENTER_Y   ((UI_MAIN_H - UI_XIAOZHI_RUN_SPRITE_H) / 2)
 #define UI_XIAOZHI_RUN_FRAME_MS   80
+#define UI_XIAOZHI_IDLE_BLINK_W   63
+#define UI_XIAOZHI_IDLE_BLINK_H   88
+#define UI_XIAOZHI_IDLE_FRAME_MS  100
+#define UI_XIAOZHI_SPEAK_W        75
+#define UI_XIAOZHI_SPEAK_H        99
+#define UI_XIAOZHI_SPEAK_FRAME_MS 100
 
 /* ---------- 宸︿晶鍥剧墖瀵艰埅 ---------- */
 #define UI_NAV_IMAGE_X          0
@@ -111,6 +117,7 @@
 #define UI_PICK_BTN_H           45
 #define UI_PICK_BTN_EXT_CLICK   6
 #define UI_PICK_BTN_GAP         12
+#define UI_PICK_BTN_SHIFT_Y     -9//按键整体上移9px
 #define UI_PICK_RAIL_GAP        8
 #define UI_PICK_STATUS_H        24
 #define UI_PICK_STATUS_TO_BTN   8

@@ -868,6 +868,9 @@ if(CONFIG_MSP3525_LASER_UI)
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/gcode/*.cc)
     file(GLOB LASER_UI_IMG_SRCS
         ${CMAKE_CURRENT_SOURCE_DIR}/boards/${LASER_UI_BOARD_DIR}/ui/assets/images/*.c)
+    list(FILTER LASER_UI_IMG_SRCS EXCLUDE REGEX [[/assets/images/[0-9]+\.c$]])
+    list(FILTER LASER_UI_IMG_SRCS EXCLUDE REGEX [[/assets/images/blink_[0-9]+\.c$]])
+    list(FILTER LASER_UI_IMG_SRCS EXCLUDE REGEX [[/assets/images/init[0-9]+\.c$]])
     list(APPEND SOURCES ${LASER_UI_SRCS} ${LASER_UI_CNC_SRCS} ${LASER_UI_PICK_SRCS}
         ${LASER_UI_GCODE_SRCS} ${LASER_UI_IMG_SRCS})
     if(LASER_UI_MCP_SRCS)
@@ -1088,7 +1091,6 @@ if(CONFIG_INTERACTION_UI_ONLY)
         "mcp_server.cc"
         "application.cc"
         "ota.cc"
-        "assets.cc"
         "device_state_machine.cc"
         "boards/common/press_to_talk_mcp_tool.cc"
         "boards/common/afsk_demod.cc"
@@ -1208,9 +1210,44 @@ endif()
 
 
 # Function to build default assets based on configuration
+function(prepare_laser_ui_init_bins output_dir_var output_stamp_var)
+    set(LASER_UI_INIT_PNG_DIR "${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi/ui/assets/png/xiaozhiai/INIT")
+    file(GLOB LASER_UI_INIT_PNGS "${LASER_UI_INIT_PNG_DIR}/*.png")
+    set(LASER_UI_INIT_BIN_DIR "${CMAKE_BINARY_DIR}/laser_ui_init_bins")
+    set(LASER_UI_INIT_STAMP "${CMAKE_BINARY_DIR}/laser_ui_init_bins.stamp")
+    set(LASER_UI_IMAGE_CONVERTER_PYTHON "${PROJECT_DIR}/scripts/Image_Converter/venv/Scripts/python.exe")
+    if(NOT EXISTS "${LASER_UI_IMAGE_CONVERTER_PYTHON}")
+        set(LASER_UI_IMAGE_CONVERTER_PYTHON python)
+    endif()
+
+    add_custom_command(
+        OUTPUT ${LASER_UI_INIT_STAMP}
+        COMMAND ${CMAKE_COMMAND} -E rm -rf ${LASER_UI_INIT_BIN_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${LASER_UI_INIT_BIN_DIR}
+        COMMAND ${LASER_UI_IMAGE_CONVERTER_PYTHON} ${PROJECT_DIR}/scripts/Image_Converter/LVGLImage.py --ofmt BIN --cf RGB565A8 --compress NONE -o ${LASER_UI_INIT_BIN_DIR} ${LASER_UI_INIT_PNG_DIR}
+        COMMAND ${CMAKE_COMMAND} -E touch ${LASER_UI_INIT_STAMP}
+        DEPENDS
+            ${PROJECT_DIR}/scripts/Image_Converter/LVGLImage.py
+            ${LASER_UI_INIT_PNGS}
+        COMMENT "Preparing laser UI init frame bins"
+        VERBATIM
+    )
+
+    set(${output_dir_var} ${LASER_UI_INIT_BIN_DIR} PARENT_SCOPE)
+    set(${output_stamp_var} ${LASER_UI_INIT_STAMP} PARENT_SCOPE)
+endfunction()
+
 function(build_default_assets_bin)
     # Set output path for generated assets.bin
     set(GENERATED_ASSETS_BIN "${CMAKE_BINARY_DIR}/generated_assets.bin")
+    set(DEFAULT_ASSETS_EXTRA_DEPENDS)
+    set(DEFAULT_ASSETS_EXTRA_FILES_LOCAL "${DEFAULT_ASSETS_EXTRA_FILES}")
+
+    if(CONFIG_MSP3525_LASER_UI AND CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+        prepare_laser_ui_init_bins(LASER_UI_INIT_BIN_DIR LASER_UI_INIT_STAMP)
+        set(DEFAULT_ASSETS_EXTRA_FILES_LOCAL "${LASER_UI_INIT_BIN_DIR}")
+        list(APPEND DEFAULT_ASSETS_EXTRA_DEPENDS ${LASER_UI_INIT_STAMP})
+    endif()
 
     # Prepare arguments for build script
     set(BUILD_ARGS
@@ -1229,8 +1266,8 @@ function(build_default_assets_bin)
     endif()
 
     # Add default assets extra files if defined
-    if(DEFAULT_ASSETS_EXTRA_FILES)
-        list(APPEND BUILD_ARGS "--extra_files" "${DEFAULT_ASSETS_EXTRA_FILES}")
+    if(DEFAULT_ASSETS_EXTRA_FILES_LOCAL)
+        list(APPEND BUILD_ARGS "--extra_files" "${DEFAULT_ASSETS_EXTRA_FILES_LOCAL}")
     endif()
 
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
@@ -1243,6 +1280,7 @@ function(build_default_assets_bin)
         DEPENDS
             ${SDKCONFIG}
             ${PROJECT_DIR}/scripts/build_default_assets.py
+            ${DEFAULT_ASSETS_EXTRA_DEPENDS}
         COMMENT "Building default assets.bin based on configuration"
         VERBATIM
     )

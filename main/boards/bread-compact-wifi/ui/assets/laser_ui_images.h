@@ -22,7 +22,7 @@ LV_IMG_DECLARE(printpage);
 LV_IMG_DECLARE(settingpage);
 LV_IMG_DECLARE(pickpage);
 LV_IMG_DECLARE(keyboard);
-LV_IMG_DECLARE(xiaozhipage);
+LV_IMG_DECLARE(xiaozhi_page);
 
 LV_IMG_DECLARE(ui_bg_fresh_480x276);
 LV_IMG_DECLARE(ui_btn_apply_220x36);
@@ -54,6 +54,14 @@ LV_IMG_DECLARE(ui_nav_pill_48x196);
 LV_IMG_DECLARE(ui_pick_grid_240);
 LV_IMG_DECLARE(ui_segment_92x34);
 LV_IMG_DECLARE(ui_xiaozhi_idle_openeyes_60x80);
+LV_IMG_DECLARE(blink1);
+LV_IMG_DECLARE(blink2);
+LV_IMG_DECLARE(blink3);
+LV_IMG_DECLARE(blink4);
+LV_IMG_DECLARE(blink5);
+LV_IMG_DECLARE(blink6);
+LV_IMG_DECLARE(blink7);
+LV_IMG_DECLARE(blink8);
 
 /* IDLE/walk (77×99): in-place walk + code translation */
 LV_IMG_DECLARE(left1);
@@ -70,16 +78,18 @@ LV_IMG_DECLARE(right5);
 LV_IMG_DECLARE(right6);
 
 /* RUN/matted_frames (82×99): centered wave loop while engraving */
-LV_IMG_DECLARE(matte_00001);
-LV_IMG_DECLARE(matte_00002);
-LV_IMG_DECLARE(matte_00003);
-LV_IMG_DECLARE(matte_00004);
-LV_IMG_DECLARE(matte_00005);
-LV_IMG_DECLARE(matte_00006);
-LV_IMG_DECLARE(matte_00007);
-LV_IMG_DECLARE(matte_00011);
-LV_IMG_DECLARE(matte_00015);
-LV_IMG_DECLARE(matte_00017);
+LV_IMG_DECLARE(run1);
+LV_IMG_DECLARE(run2);
+LV_IMG_DECLARE(run3);
+LV_IMG_DECLARE(run4);
+LV_IMG_DECLARE(run5);
+LV_IMG_DECLARE(run6);
+LV_IMG_DECLARE(run7);
+LV_IMG_DECLARE(speak_1open);
+LV_IMG_DECLARE(speak_2close);
+LV_IMG_DECLARE(speak_3open);
+LV_IMG_DECLARE(speak_4blink);
+LV_IMG_DECLARE(speak_5close);
 
 #ifdef __cplusplus
 }

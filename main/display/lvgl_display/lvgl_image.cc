@@ -62,3 +62,23 @@ LvglAllocatedImage::~LvglAllocatedImage() {
         image_dsc_.data = nullptr;
     }
 }
+
+LvglBorrowedImage::LvglBorrowedImage(void* data, size_t size) {
+    bzero(&image_dsc_, sizeof(image_dsc_));
+    if (data == nullptr || size <= sizeof(lv_image_header_t)) {
+        ESP_LOGE(TAG, "Invalid borrowed image buffer, data: %p size: %u", data, size);
+        throw std::runtime_error("Invalid borrowed image buffer");
+    }
+
+    lv_image_header_t header;
+    memcpy(&header, data, sizeof(header));
+    if (header.magic != LV_IMAGE_HEADER_MAGIC) {
+        ESP_LOGE(TAG, "Invalid borrowed image magic, data: %p size: %u magic: %u", data, size,
+                 (unsigned)header.magic);
+        throw std::runtime_error("Invalid borrowed image magic");
+    }
+
+    image_dsc_.header = header;
+    image_dsc_.data_size = size - sizeof(lv_image_header_t);
+    image_dsc_.data = static_cast<const uint8_t*>(data) + sizeof(lv_image_header_t);
+}

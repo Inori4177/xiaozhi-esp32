@@ -51,3 +51,12 @@ public:
 private:
     lv_img_dsc_t image_dsc_;
 };
+
+class LvglBorrowedImage : public LvglImage {
+public:
+    LvglBorrowedImage(void* data, size_t size);
+    virtual const lv_img_dsc_t* image_dsc() const override { return &image_dsc_; }
+
+private:
+    lv_img_dsc_t image_dsc_;
+};

@@ -2,194 +2,136 @@
 #include "laser_ui_layout.h"
 #include "laser_ui.h"
 
+#include "assets.h"
 #include "display.h"
+#include "lvgl_image.h"
 #include "boards/common/board_custom_ui.h"
 
 #include <esp_log.h>
 #include <font_awesome.h>
+#include <cstdio>
 #include <cstring>
+#include <memory>
+#include <vector>
 
 static const char *TAG = "laser_ui_splash";
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 
-// One visible glyph per entry (left-to-right typewriter order). UTF-8 bytes, no u8"" (C++20 char8_t).
-static const char *const kSplashTitleGlyphs[] = {
-    "A", "I",
-    "\xE8\xB5\x8B", /* 赋 */
-    "\xE8\x83\xBD", /* 能 */
-    "\xE8\xAE\xBE", /* 设 */
-    "\xE8\xAE\xA1", /* 计 */
-    "\xEF\xBC\x8C", /* ， */
-    "\xE8\xAE\xBE", /* 设 */
-    "\xE8\xAE\xA1", /* 计 */
-    "\xE7\x82\xB9", /* 点 */
-    "\xE4\xBA\xAE", /* 亮 */
-    "A", "I",
-};
-static constexpr int kSplashTitleGlyphCount =
-    static_cast<int>(sizeof(kSplashTitleGlyphs) / sizeof(kSplashTitleGlyphs[0]));
+static const char *const kSplashSlogan =
+    "AI"
+    "\xE8\xB5\x8B"  /* 赋 */
+    "\xE8\x83\xBD"  /* 能 */
+    "\xE8\xAE\xBE"  /* 设 */
+    "\xE8\xAE\xA1"  /* 计 */
+    "\xEF\xBC\x8C"  /* ， */
+    "\xE8\xAE\xBE"  /* 设 */
+    "\xE8\xAE\xA1"  /* 计 */
+    "\xE7\x82\xB9"  /* 点 */
+    "\xE4\xBA\xAE"  /* 亮 */
+    "AI";
 
-static const char *kStepNames[SPLASH_STEP_COUNT] = {
-    "Display / LVGL",
-    "Audio Service",
-    "MCP Tools",
-    "Network",
-    "WiFi Connected",
-    "Asset Loading",
-    "Version Check",
-    "Communication Protocol",
-    "System Ready",
+static constexpr int kSplashContentGap = 1;
+static constexpr uint32_t kSplashInitFrameDefaultMs = 212;
+/** init1 多停一会儿，拉开与 init2 的间距 */
+static constexpr uint32_t kSplashInitFrame1HoldMs = 480;
+static constexpr uint32_t kSplashInitFrame2HoldMs = 380;
+/** init10 末帧加长再切 slogan */
+static constexpr uint32_t kSplashInitFrame10HoldMs = 900;
+static constexpr uint32_t kSplashSloganTickMs = 212;
+static constexpr uint32_t kSplashSloganFadeDelayMs = 0;
+static constexpr uint32_t kSplashSloganFadeMs = 2200;
+static constexpr uint32_t kSplashSloganHoldMs = 500;
+static constexpr int kSplashInitW = 173;
+static constexpr int kSplashInitH = 130;
+static constexpr unsigned kSplashInitFrameCount = 10;
+
+enum SplashStage {
+    SPLASH_STAGE_INIT = 0,
+    SPLASH_STAGE_SLOGAN,
 };
 
 struct SplashContext {
     Display *display = nullptr;
     lv_obj_t *overlay = nullptr;
+    lv_obj_t *init_image = nullptr;
+    lv_obj_t *content_row = nullptr;
+    lv_obj_t *title_icon = nullptr;
     lv_obj_t *title_label = nullptr;
-    char title_buf[64] = {};
-    lv_obj_t *step_list = nullptr;
-    lv_obj_t *step_rows[SPLASH_STEP_COUNT] = {};
-    lv_obj_t *step_icons[SPLASH_STEP_COUNT] = {};
-    lv_obj_t *step_labels[SPLASH_STEP_COUNT] = {};
-    lv_obj_t *progress_bar = nullptr;
-    lv_timer_t *title_timer = nullptr;
-    int title_glyph_index = 0;
-    laser_splash_state_t states[SPLASH_STEP_COUNT] = {};
-    int running_step = -1;
+    lv_timer_t *stage_timer = nullptr;
+    std::vector<std::shared_ptr<LvglBorrowedImage>> init_frames;
+    unsigned init_frame_idx = 0;
+    uint32_t slogan_elapsed_ms = 0;
+    SplashStage stage = SPLASH_STAGE_INIT;
+    bool pending_finish = false;
     bool active = false;
     bool finishing = false;
 };
 
 static SplashContext g_splash;
 
-static lv_color_t state_color(laser_splash_state_t state)
+static uint32_t splash_init_frame_hold_ms(unsigned frame_idx)
 {
-    switch (state) {
-    case SPLASH_STATE_RUNNING:
-        return CYBER_AMBER;
-    case SPLASH_STATE_OK:
-        return CYBER_GREEN;
-    case SPLASH_STATE_FAIL:
-        return CYBER_RED;
-    default:
-        return CYBER_DIM;
+    if (frame_idx == 0) {
+        return kSplashInitFrame1HoldMs;
+    }
+    if (frame_idx == 1) {
+        return kSplashInitFrame2HoldMs;
+    }
+    if (frame_idx + 1U >= kSplashInitFrameCount) {
+        return kSplashInitFrame10HoldMs;
+    }
+    return kSplashInitFrameDefaultMs;
+}
+
+static void splash_set_stage_timer_period(lv_timer_t *timer, uint32_t period_ms)
+{
+    if (timer != nullptr) {
+        lv_timer_set_period(timer, period_ms);
+        lv_timer_reset(timer);
     }
 }
 
-static const char *state_icon(laser_splash_state_t state)
+static bool splash_load_init_frames(void)
 {
-    switch (state) {
-    case SPLASH_STATE_RUNNING:
-        return LV_SYMBOL_REFRESH;
-    case SPLASH_STATE_OK:
-        return LV_SYMBOL_OK;
-    case SPLASH_STATE_FAIL:
-        return LV_SYMBOL_CLOSE;
-    default:
-        return LV_SYMBOL_DUMMY;
-    }
-}
+    auto &assets = Assets::GetInstance();
+    g_splash.init_frames.clear();
+    g_splash.init_frames.reserve(kSplashInitFrameCount);
 
-static void splash_refresh_step_row(int step)
-{
-    if (step < 0 || step >= SPLASH_STEP_COUNT || g_splash.step_icons[step] == nullptr) {
-        return;
-    }
-    laser_splash_state_t st = g_splash.states[step];
-    lv_label_set_text(g_splash.step_icons[step], state_icon(st));
-    lv_obj_set_style_text_color(g_splash.step_icons[step], state_color(st), LV_PART_MAIN);
-    if (st == SPLASH_STATE_RUNNING) {
-        lv_obj_set_style_opa(g_splash.step_rows[step], LV_OPA_80, LV_PART_MAIN);
-    } else {
-        lv_obj_set_style_opa(g_splash.step_rows[step], LV_OPA_COVER, LV_PART_MAIN);
-    }
-}
+    for (unsigned i = 1; i <= kSplashInitFrameCount; ++i) {
+        char name[16];
+        snprintf(name, sizeof(name), "init%u.bin", i);
 
-static void splash_update_progress(void)
-{
-    if (g_splash.progress_bar == nullptr) {
-        return;
-    }
-    int done = 0;
-    for (int i = 0; i < SPLASH_STEP_COUNT; ++i) {
-        if (g_splash.states[i] == SPLASH_STATE_OK) {
-            done++;
+        void *ptr = nullptr;
+        size_t size = 0;
+        if (!assets.GetAssetData(name, ptr, size)) {
+            ESP_LOGW(TAG, "Init splash asset missing: %s", name);
+            g_splash.init_frames.clear();
+            return false;
+        }
+        ESP_LOGI(TAG, "Init splash asset loaded: %s ptr=%p size=%u", name, ptr, (unsigned)size);
+
+        try {
+            g_splash.init_frames.push_back(std::make_shared<LvglBorrowedImage>(ptr, size));
+        } catch (...) {
+            ESP_LOGE(TAG, "Failed to decode init splash asset: %s", name);
+            g_splash.init_frames.clear();
+            return false;
         }
     }
-    lv_bar_set_value(g_splash.progress_bar, done, LV_ANIM_ON);
-}
 
-static void splash_scroll_to_focus_step(void)
-{
-    if (g_splash.step_list == nullptr) {
-        return;
-    }
-
-    int focus = g_splash.running_step;
-    if (focus < 0) {
-        for (int i = SPLASH_STEP_COUNT - 1; i >= 0; --i) {
-            if (g_splash.states[i] != SPLASH_STATE_WAIT) {
-                focus = i;
-                break;
-            }
-        }
-    }
-    if (focus >= 0 && g_splash.step_rows[focus] != nullptr) {
-        lv_obj_scroll_to_view(g_splash.step_rows[focus], LV_ANIM_ON);
-    }
-}
-
-static void splash_refresh_ui(void)
-{
-    if (!g_splash.active || g_splash.overlay == nullptr) {
-        return;
-    }
-    for (int i = 0; i < SPLASH_STEP_COUNT; ++i) {
-        splash_refresh_step_row(i);
-    }
-    splash_update_progress();
-    splash_scroll_to_focus_step();
-}
-
-static void splash_async_refresh(void *user_data)
-{
-    (void)user_data;
-    if (g_splash.display == nullptr) {
-        return;
-    }
-    DisplayLockGuard lock(g_splash.display);
-    splash_refresh_ui();
-}
-
-static void title_timer_cb(lv_timer_t *timer)
-{
-    (void)timer;
-    if (g_splash.title_label == nullptr) {
-        return;
-    }
-    if (g_splash.title_glyph_index >= kSplashTitleGlyphCount) {
-        if (g_splash.title_timer != nullptr) {
-            lv_timer_pause(g_splash.title_timer);
-        }
-        return;
-    }
-
-    const char *glyph = kSplashTitleGlyphs[g_splash.title_glyph_index++];
-    const size_t used = strlen(g_splash.title_buf);
-    const size_t glen = strlen(glyph);
-    const size_t cap = sizeof(g_splash.title_buf) - 1;
-    if (used + glen <= cap) {
-        memcpy(g_splash.title_buf + used, glyph, glen);
-        g_splash.title_buf[used + glen] = '\0';
-    }
-
-    lv_label_set_text(g_splash.title_label, g_splash.title_buf);
+    return !g_splash.init_frames.empty();
 }
 
 static void overlay_opa_anim(void *obj, int32_t v)
 {
     lv_obj_set_style_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), LV_PART_MAIN);
+}
+
+static void label_opa_anim(void *obj, int32_t v)
+{
+    lv_obj_set_style_text_opa(static_cast<lv_obj_t *>(obj), static_cast<lv_opa_t>(v), LV_PART_MAIN);
 }
 
 static void splash_deferred_laser_ui_init(void *user_data)
@@ -203,20 +145,133 @@ static void splash_deferred_laser_ui_init(void *user_data)
 static void splash_fade_ready_cb(lv_anim_t *anim)
 {
     (void)anim;
+    if (g_splash.stage_timer != nullptr) {
+        lv_timer_delete(g_splash.stage_timer);
+        g_splash.stage_timer = nullptr;
+    }
     if (g_splash.overlay != nullptr) {
         lv_obj_del(g_splash.overlay);
         g_splash.overlay = nullptr;
     }
-    if (g_splash.title_timer != nullptr) {
-        lv_timer_delete(g_splash.title_timer);
-        g_splash.title_timer = nullptr;
-    }
     g_splash.active = false;
     g_splash.finishing = false;
+    g_splash.pending_finish = false;
 
     if (g_splash.display != nullptr) {
-        /* Defer init to avoid lvgl_port_lock re-entry from anim ready callback. */
         lv_async_call(splash_deferred_laser_ui_init, g_splash.display);
+    }
+}
+
+static void splash_begin_finish(void)
+{
+    if (!g_splash.active || g_splash.finishing || g_splash.overlay == nullptr) {
+        return;
+    }
+
+    g_splash.finishing = true;
+    lv_anim_t anim;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, g_splash.overlay);
+    lv_anim_set_exec_cb(&anim, overlay_opa_anim);
+    lv_anim_set_values(&anim, LV_OPA_COVER, LV_OPA_TRANSP);
+    lv_anim_set_duration(&anim, 300);
+    lv_anim_set_ready_cb(&anim, splash_fade_ready_cb);
+    lv_anim_start(&anim);
+
+    ESP_LOGI(TAG, "Splash finishing");
+}
+
+static void splash_show_slogan_stage(void)
+{
+    ESP_LOGI(TAG, "Splash switching to slogan stage");
+    g_splash.stage = SPLASH_STAGE_SLOGAN;
+    g_splash.slogan_elapsed_ms = 0;
+
+    if (g_splash.init_image != nullptr) {
+        lv_obj_del(g_splash.init_image);
+        g_splash.init_image = nullptr;
+    }
+
+    if (g_splash.overlay == nullptr) {
+        return;
+    }
+
+    lv_obj_set_style_bg_color(g_splash.overlay, lv_color_white(), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(g_splash.overlay, LV_OPA_COVER, LV_PART_MAIN);
+
+    g_splash.content_row = lv_obj_create(g_splash.overlay);
+    lv_obj_set_size(g_splash.content_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_bg_opa(g_splash.content_row, LV_OPA_TRANSP, LV_PART_MAIN);
+    lv_obj_set_style_border_width(g_splash.content_row, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(g_splash.content_row, 0, LV_PART_MAIN);
+    lv_obj_set_style_pad_column(g_splash.content_row, kSplashContentGap, LV_PART_MAIN);
+    lv_obj_set_flex_flow(g_splash.content_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(g_splash.content_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER,
+                          LV_FLEX_ALIGN_CENTER);
+    lv_obj_center(g_splash.content_row);
+
+    g_splash.title_icon = lv_label_create(g_splash.content_row);
+    lv_label_set_text(g_splash.title_icon, FONT_AWESOME_MICROCHIP_AI);
+    lv_obj_set_style_text_font(g_splash.title_icon, &BUILTIN_ICON_FONT, LV_PART_MAIN);
+    lv_obj_set_style_text_color(g_splash.title_icon, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_opa(g_splash.title_icon, LV_OPA_TRANSP, LV_PART_MAIN);
+
+    g_splash.title_label = lv_label_create(g_splash.content_row);
+    lv_label_set_text(g_splash.title_label, kSplashSlogan);
+    lv_label_set_long_mode(g_splash.title_label, LV_LABEL_LONG_CLIP);
+    lv_obj_set_width(g_splash.title_label, LV_SIZE_CONTENT);
+    lv_obj_set_style_text_align(g_splash.title_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
+    lv_obj_set_style_text_color(g_splash.title_label, lv_color_black(), LV_PART_MAIN);
+    lv_obj_set_style_text_font(g_splash.title_label, &BUILTIN_TEXT_FONT, LV_PART_MAIN);
+    lv_obj_set_style_text_opa(g_splash.title_label, LV_OPA_TRANSP, LV_PART_MAIN);
+
+    lv_anim_t icon_anim;
+    lv_anim_init(&icon_anim);
+    lv_anim_set_var(&icon_anim, g_splash.title_icon);
+    lv_anim_set_exec_cb(&icon_anim, label_opa_anim);
+    lv_anim_set_values(&icon_anim, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_delay(&icon_anim, kSplashSloganFadeDelayMs);
+    lv_anim_set_duration(&icon_anim, kSplashSloganFadeMs);
+    lv_anim_set_path_cb(&icon_anim, lv_anim_path_ease_in_out);
+    lv_anim_start(&icon_anim);
+
+    lv_anim_t title_anim;
+    lv_anim_init(&title_anim);
+    lv_anim_set_var(&title_anim, g_splash.title_label);
+    lv_anim_set_exec_cb(&title_anim, label_opa_anim);
+    lv_anim_set_values(&title_anim, LV_OPA_TRANSP, LV_OPA_COVER);
+    lv_anim_set_delay(&title_anim, kSplashSloganFadeDelayMs);
+    lv_anim_set_duration(&title_anim, kSplashSloganFadeMs);
+    lv_anim_set_path_cb(&title_anim, lv_anim_path_ease_in_out);
+    lv_anim_start(&title_anim);
+}
+
+static void splash_stage_timer_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    if (!g_splash.active || g_splash.finishing) {
+        return;
+    }
+
+    if (g_splash.stage == SPLASH_STAGE_INIT) {
+        if (g_splash.init_frame_idx + 1U < g_splash.init_frames.size()) {
+            ++g_splash.init_frame_idx;
+            ESP_LOGI(TAG, "Splash show init frame %u/%u hold=%ums", g_splash.init_frame_idx + 1U,
+                     (unsigned)g_splash.init_frames.size(),
+                     (unsigned)splash_init_frame_hold_ms(g_splash.init_frame_idx));
+            lv_image_set_src(g_splash.init_image, g_splash.init_frames[g_splash.init_frame_idx]->image_dsc());
+            splash_set_stage_timer_period(timer, splash_init_frame_hold_ms(g_splash.init_frame_idx));
+            return;
+        }
+        splash_show_slogan_stage();
+        splash_set_stage_timer_period(timer, kSplashSloganTickMs);
+        return;
+    }
+
+    g_splash.slogan_elapsed_ms += kSplashSloganTickMs;
+    if (g_splash.pending_finish &&
+        g_splash.slogan_elapsed_ms >= kSplashSloganFadeDelayMs + kSplashSloganFadeMs + kSplashSloganHoldMs) {
+        splash_begin_finish();
     }
 }
 
@@ -226,113 +281,51 @@ void laser_ui_splash_start(Display *display)
         return;
     }
 
-    memset(&g_splash, 0, sizeof(g_splash));
+    g_splash = SplashContext{};
     g_splash.display = display;
     g_splash.active = true;
+    g_splash.stage = SPLASH_STAGE_INIT;
 
     DisplayLockGuard lock(display);
     BoardUiSetChromeVisible(display, false, false);
 
     lv_obj_t *screen = lv_screen_active();
-    lv_obj_set_style_bg_color(screen, SPLASH_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, LV_PART_MAIN);
 
     g_splash.overlay = lv_obj_create(screen);
     lv_obj_set_size(g_splash.overlay, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_bg_color(g_splash.overlay, SPLASH_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(g_splash.overlay, lv_color_black(), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(g_splash.overlay, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_border_width(g_splash.overlay, 0, LV_PART_MAIN);
     lv_obj_set_style_pad_all(g_splash.overlay, 0, LV_PART_MAIN);
     lv_obj_clear_flag(g_splash.overlay, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_move_foreground(g_splash.overlay);
 
-    g_splash.title_buf[0] = '\0';
-    g_splash.title_glyph_index = 0;
-
-    lv_obj_t *title_row = lv_obj_create(g_splash.overlay);
-    lv_obj_set_size(title_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(title_row, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(title_row, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(title_row, 0, LV_PART_MAIN);
-    lv_obj_set_flex_flow(title_row, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(title_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(title_row, 6, LV_PART_MAIN);
-    lv_obj_align(title_row, LV_ALIGN_TOP_MID, 0, 24);
-
-    lv_obj_t *title_icon = lv_label_create(title_row);
-    lv_label_set_text(title_icon, FONT_AWESOME_MICROCHIP_AI);
-    lv_obj_set_style_text_font(title_icon, &BUILTIN_ICON_FONT, LV_PART_MAIN);
-    lv_obj_set_style_text_color(title_icon, CYBER_CYAN, LV_PART_MAIN);
-
-    g_splash.title_label = lv_label_create(title_row);
-    lv_label_set_text(g_splash.title_label, "");
-    lv_obj_set_width(g_splash.title_label, LV_SIZE_CONTENT);
-    lv_label_set_long_mode(g_splash.title_label, LV_LABEL_LONG_CLIP);
-    lv_obj_set_style_text_align(g_splash.title_label, LV_TEXT_ALIGN_LEFT, LV_PART_MAIN);
-    lv_obj_set_style_text_color(g_splash.title_label, CYBER_CYAN, LV_PART_MAIN);
-    lv_obj_set_style_text_font(g_splash.title_label, &BUILTIN_TEXT_FONT, LV_PART_MAIN);
-
-    g_splash.step_list = lv_obj_create(g_splash.overlay);
-    lv_obj_set_size(g_splash.step_list, LV_HOR_RES - 24, 180);
-    lv_obj_align(g_splash.step_list, LV_ALIGN_TOP_MID, 0, 72);
-    lv_obj_set_style_bg_opa(g_splash.step_list, LV_OPA_TRANSP, LV_PART_MAIN);
-    lv_obj_set_style_border_width(g_splash.step_list, 0, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(g_splash.step_list, 4, LV_PART_MAIN);
-    lv_obj_set_flex_flow(g_splash.step_list, LV_FLEX_FLOW_COLUMN);
-    lv_obj_set_flex_align(g_splash.step_list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
-    lv_obj_set_style_pad_row(g_splash.step_list, 4, LV_PART_MAIN);
-    lv_obj_add_flag(g_splash.step_list, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_set_scroll_dir(g_splash.step_list, LV_DIR_VER);
-    lv_obj_set_scrollbar_mode(g_splash.step_list, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_scroll_snap_y(g_splash.step_list, LV_SCROLL_SNAP_NONE);
-
-    for (int i = 0; i < SPLASH_STEP_COUNT; ++i) {
-        g_splash.states[i] = SPLASH_STATE_WAIT;
-        g_splash.step_rows[i] = lv_obj_create(g_splash.step_list);
-        lv_obj_set_size(g_splash.step_rows[i], LV_PCT(100), LV_SIZE_CONTENT);
-        lv_obj_set_style_bg_opa(g_splash.step_rows[i], LV_OPA_TRANSP, LV_PART_MAIN);
-        lv_obj_set_style_border_width(g_splash.step_rows[i], 0, LV_PART_MAIN);
-        lv_obj_set_style_pad_all(g_splash.step_rows[i], 2, LV_PART_MAIN);
-        lv_obj_set_flex_flow(g_splash.step_rows[i], LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(g_splash.step_rows[i], LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-        g_splash.step_icons[i] = lv_label_create(g_splash.step_rows[i]);
-        lv_obj_set_width(g_splash.step_icons[i], 20);
-        lv_label_set_text(g_splash.step_icons[i], state_icon(SPLASH_STATE_WAIT));
-
-        g_splash.step_labels[i] = lv_label_create(g_splash.step_rows[i]);
-        lv_label_set_text(g_splash.step_labels[i], kStepNames[i]);
-        lv_obj_set_style_text_color(g_splash.step_labels[i], UI_COLOR_TEXT, LV_PART_MAIN);
-        splash_refresh_step_row(i);
+    if (splash_load_init_frames()) {
+        g_splash.init_image = lv_image_create(g_splash.overlay);
+        lv_image_set_src(g_splash.init_image, g_splash.init_frames[0]->image_dsc());
+        ESP_LOGI(TAG, "Splash show init frame 1/%u", (unsigned)g_splash.init_frames.size());
+        lv_obj_set_size(g_splash.init_image, kSplashInitW, kSplashInitH);
+        lv_obj_center(g_splash.init_image);
+        lv_obj_set_style_bg_opa(g_splash.init_image, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_clear_flag(g_splash.init_image, LV_OBJ_FLAG_CLICKABLE);
+    } else {
+        ESP_LOGW(TAG, "Splash init frames unavailable, skip to slogan");
+        splash_show_slogan_stage();
     }
 
-    g_splash.progress_bar = lv_bar_create(g_splash.overlay);
-    lv_obj_set_size(g_splash.progress_bar, LV_HOR_RES - 48, 8);
-    lv_obj_align(g_splash.progress_bar, LV_ALIGN_BOTTOM_MID, 0, -24);
-    lv_bar_set_range(g_splash.progress_bar, 0, SPLASH_STEP_COUNT);
-    lv_obj_set_style_bg_color(g_splash.progress_bar, UI_COLOR_PANEL, LV_PART_MAIN);
-    lv_obj_set_style_bg_color(g_splash.progress_bar, CYBER_CYAN, LV_PART_INDICATOR);
-    lv_bar_set_value(g_splash.progress_bar, 0, LV_ANIM_OFF);
-
-    g_splash.title_timer = lv_timer_create(title_timer_cb, 100, nullptr);
+    const uint32_t first_hold_ms =
+        g_splash.stage == SPLASH_STAGE_INIT ? splash_init_frame_hold_ms(0) : kSplashSloganTickMs;
+    g_splash.stage_timer = lv_timer_create(splash_stage_timer_cb, first_hold_ms, nullptr);
 
     ESP_LOGI(TAG, "Splash started");
 }
 
 void laser_ui_splash_set_step(laser_splash_step_id_t step, laser_splash_state_t state)
 {
-    if (!g_splash.active || step >= SPLASH_STEP_COUNT) {
-        return;
-    }
-
-    g_splash.states[step] = state;
-    if (state == SPLASH_STATE_RUNNING) {
-        g_splash.running_step = static_cast<int>(step);
-    } else if (g_splash.running_step == static_cast<int>(step)) {
-        g_splash.running_step = -1;
-    }
-
-    lv_async_call(splash_async_refresh, nullptr);
+    (void)step;
+    (void)state;
 }
 
 bool laser_ui_splash_is_active(void)
@@ -350,28 +343,13 @@ void laser_ui_splash_finish(Display *display)
         return;
     }
 
-    g_splash.finishing = true;
-    DisplayLockGuard lock(display);
-
-    if (g_splash.title_timer != nullptr) {
-        lv_timer_pause(g_splash.title_timer);
+    g_splash.pending_finish = true;
+    ESP_LOGI(TAG, "Splash finish requested at stage=%d elapsed=%u", (int)g_splash.stage,
+             (unsigned)g_splash.slogan_elapsed_ms);
+    if (g_splash.stage == SPLASH_STAGE_SLOGAN) {
+        DisplayLockGuard lock(display);
+        if (g_splash.slogan_elapsed_ms >= kSplashSloganFadeDelayMs + kSplashSloganFadeMs + kSplashSloganHoldMs) {
+            splash_begin_finish();
+        }
     }
-
-    if (g_splash.overlay == nullptr) {
-        g_splash.active = false;
-        g_splash.finishing = false;
-        laser_ui_init(display);
-        return;
-    }
-
-    lv_anim_t anim;
-    lv_anim_init(&anim);
-    lv_anim_set_var(&anim, g_splash.overlay);
-    lv_anim_set_exec_cb(&anim, overlay_opa_anim);
-    lv_anim_set_values(&anim, LV_OPA_COVER, LV_OPA_TRANSP);
-    lv_anim_set_duration(&anim, 300);
-    lv_anim_set_ready_cb(&anim, splash_fade_ready_cb);
-    lv_anim_start(&anim);
-
-    ESP_LOGI(TAG, "Splash finishing");
 }
